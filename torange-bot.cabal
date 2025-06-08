@@ -1,0 +1,17 @@
+cabal-version:   3.14
+name:            torange-bot
+description:     Script posting links to Reddit with a provided login.
+synopsis:        A minimal link-posting bot for Reddit.
+version:         0.0.0.1
+license:         Unlicense
+build-type:      Simple
+category:        Network
+maintainer:      g at 11xx dot org
+
+license-file: UNLICENSE
+
+executable torange-bot
+    main-is:          Bot.hs
+    build-depends:    base >= 4.21 && < 4.22
+    default-language: GHC2024
+    ghc-options: -Wall
