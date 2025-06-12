@@ -7,11 +7,15 @@ license:         Unlicense
 build-type:      Simple
 category:        Network
 maintainer:      g at 11xx dot org
-
-license-file: UNLICENSE
+license-file:    UNLICENSE
+homepage:        https://github.com/useless-utils/torange-bot
+source-repository head
+    type:        git
+    location:    https://github.com/useless-utils/torange-bot
 
 executable torange-bot
     main-is:          Bot.hs
-    build-depends:    base >= 4.21 && < 4.22
+    build-depends:    base ^>= 4.21
+                    , reddit ^>= 0.3
     default-language: GHC2024
     ghc-options: -Wall
