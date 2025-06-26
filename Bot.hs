@@ -12,19 +12,21 @@ defaultConfig = Config
 main :: IO ()
 main = do
   args <- getArgs
-  let conf = parseArgs args defaultConfig
-  putStrLn $ "Username from CLI: " ++ username conf
+  let confArgs = parseArgs args defaultConfig
+  putStrLn $ "Username from CLI: " ++ username confArgs
 
   usernameEnv <- lookupEnv "TORANGE_BOT_REDDIT_USERNAME"
   secretEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET"
 
-  username <- case usernameEnv of
-                Nothing -> die "ERROR: No username provided."
-                Just x -> pure x
+  conf <- case usernameEnv of
+               Nothing -> if username confArgs == []
+                          then die "ERROR: No username provided."
+                          else pure confArgs {username = username confArgs}
+               Just x -> pure confArgs {username = x}
 
   print $ doesSecretHave2FA secretEnv
 
-  putStrLn $ "Hi, " <> username
+  putStrLn $ "Hi, " <> username conf
 
 data Config = Config
   { username :: String
