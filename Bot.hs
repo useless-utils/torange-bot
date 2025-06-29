@@ -75,9 +75,12 @@ getConfigDir = do
     then getXdgConfigDir
     else makeRelativeToCurrentDirectory =<< getCurrentDirectory
 
+getConfigFile :: IO FilePath
+getConfigFile = fmap (</> "torange-bot.conf") getConfigDir
+
 doesConfigFileExist :: IO Bool
 doesConfigFileExist = do
-  doesFileExist =<< fmap (</> "torange-bot.conf") getConfigDir
+  doesFileExist =<< getConfigFile
 
 createConfigDir :: IO (Either FilePath FilePath)
 createConfigDir = do
