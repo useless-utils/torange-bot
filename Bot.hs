@@ -3,6 +3,8 @@ import System.Environment
 import System.Exit
 import Data.Maybe
 import Control.Applicative
+import System.Directory
+import System.FilePath
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -62,3 +64,25 @@ doesSecretHave2FA (Just env) = go env
                   _ -> go xs
     go [] = False
 doesSecretHave2FA Nothing = False
+
+getXdgConfigDir :: IO FilePath
+getXdgConfigDir = getXdgDirectory XdgConfig "torange-bot"
+
+getConfigDir :: IO FilePath
+getConfigDir = do
+  doesXdgConfDirExists <- doesDirectoryExist =<< getXdgConfigDir
+  if doesXdgConfDirExists
+    then getXdgConfigDir
+    else makeRelativeToCurrentDirectory =<< getCurrentDirectory
+
+doesConfigFileExist :: IO Bool
+doesConfigFileExist = do
+  doesFileExist =<< fmap (</> "torange-bot.conf") getConfigDir
+
+createConfigDir :: IO (Either FilePath FilePath)
+createConfigDir = do
+  confDir <- getConfigDir
+  if confDir == "."
+    then pure $ Left confDir  -- using current directory as conf dir
+    else do createDirectory confDir
+            pure $ Right confDir

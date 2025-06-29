@@ -17,5 +17,7 @@ executable torange-bot
     main-is:          Bot.hs
     build-depends:    base ^>= 4.21
                     , reddit ^>= 0.3
+                    , directory ^>= 1.3.9.0
+                    , filepath ^>= 1.5.4.0
     default-language: GHC2024
     ghc-options: -Wall
