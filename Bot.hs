@@ -75,12 +75,20 @@ getConfigDir = do
     then getXdgConfigDir
     else makeRelativeToCurrentDirectory =<< getCurrentDirectory
 
-getConfigFile :: IO FilePath
-getConfigFile = fmap (</> "torange-bot.conf") getConfigDir
+getConfigFile :: IO (Either String FilePath)
+getConfigFile = do
+  file <- fmap (</> "torange-bot.conf") getConfigDir
+  fileCheck <- doesFileExist file
+  if fileCheck
+    then pure $ Right file
+    else pure $ Left $ "Default config file \"" ++ file ++ "\" doesn't exist."
 
 doesConfigFileExist :: IO Bool
 doesConfigFileExist = do
-  doesFileExist =<< getConfigFile
+  confFile <- getConfigFile
+  case confFile of
+    Right _ -> pure True
+    Left  _ -> pure False
 
 createConfigDir :: IO (Either FilePath FilePath)
 createConfigDir = do
