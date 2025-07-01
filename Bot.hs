@@ -110,9 +110,8 @@ parseConfigFile file conf = do
     lineTokenise (x:xs) key val
       | isSpace x = lineTokenise xs key val
       | x == '=' = (key, dropTrailingSpaces $ dropInlineComment $ dropLeadingSpaces xs)
-    lineTokenise ('#':_) key val = lineTokenise [] key val
-    lineTokenise (x:xs) key val = lineTokenise xs (key <> [x]) val
-    lineTokenise [] key val = (key,val)
+      | otherwise = lineTokenise xs (key <> [x]) val
+    lineTokenise [] _ _ = ([],[])
     linesToConf c lines = lines
 
 isConfigKey s = [s] `isInfixOf` [ "username"
@@ -129,4 +128,4 @@ dropInlineComment l = go l []
     go :: String -> String -> String
     go (' ':'#':_) beforeC = beforeC
     go (x:xs) beforeC = go xs (beforeC <> [x])
-    go [] _ = []
+    go _ beforeC = beforeC
