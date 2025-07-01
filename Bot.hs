@@ -5,6 +5,8 @@ import Data.Maybe
 import Control.Applicative
 import System.Directory
 import System.FilePath
+import Data.Char
+import Data.List
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -97,3 +99,27 @@ createConfigDir = do
     then pure $ Left confDir  -- using current directory as conf dir
     else do createDirectory confDir
             pure $ Right confDir
+
+parseConfigFile file conf = do
+  confFileLines <- lines <$> readFile file
+  pure $ linesToConf conf $ parseLines confFileLines
+  where
+    parseLines (line:linesRest) = lineTokenise line [] [] : parseLines linesRest
+    parseLines [] = []
+    lineTokenise :: String -> String -> String -> (String, String)
+    lineTokenise (x:xs) key val
+      | isSpace x = lineTokenise xs key val
+      | x == '=' = (key, (trimStart xs))
+    lineTokenise ('#':_) key val = lineTokenise [] key val
+    lineTokenise (x:xs) key val = lineTokenise xs (key <> [x]) val
+    lineTokenise [] key val = (key,val)
+    linesToConf c lines = lines
+
+isConfigKey s = [s] `isInfixOf` [ "username"
+                                , "secret_file"
+                                ]
+
+trimStart (x:xs) | isSpace x = trimStart xs
+                 | isAlphaNum x = x : xs
+trimStart (_:_) = []
+trimStart [] = []
