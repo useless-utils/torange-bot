@@ -100,13 +100,14 @@ createConfigDir = do
     else do createDirectory confDir
             pure $ Right confDir
 
+parseConfigFile :: FilePath -> Config -> IO [(String, String)]
 parseConfigFile file conf = do
   confFileLines <- lines <$> readFile file
-  pure $ linesToConf conf $ parseLines confFileLines
+  pure $ linesToConf conf $ mapMaybe parseLines confFileLines
   where
-    parseLines (line:linesRest) = lineTokenise line [] [] : parseLines linesRest
-    parseLines [] = []
-    lineTokenise :: String -> String -> String -> (String, String)
+    parseLines line = case lineTokenise line [] [] of
+      ([], []) -> Nothing
+      result -> Just result
     lineTokenise (x:xs) key val
       | isSpace x = lineTokenise xs key val
       | x == '=' = (key, dropTrailingSpaces $ dropInlineComment $ dropLeadingSpaces xs)
@@ -114,12 +115,15 @@ parseConfigFile file conf = do
     lineTokenise [] _ _ = ([],[])
     linesToConf c lines = lines
 
+
 isConfigKey s = [s] `isInfixOf` [ "username"
                                 , "secret_file"
                                 ]
 
+dropLeadingSpaces :: String -> String
 dropLeadingSpaces s = dropWhile isSpace s
 
+dropTrailingSpaces :: String -> String
 dropTrailingSpaces s = dropWhileEnd isSpace s
 
 dropInlineComment :: String -> String
