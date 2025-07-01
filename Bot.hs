@@ -109,7 +109,7 @@ parseConfigFile file conf = do
     lineTokenise :: String -> String -> String -> (String, String)
     lineTokenise (x:xs) key val
       | isSpace x = lineTokenise xs key val
-      | x == '=' = (key, (trimStart xs))
+      | x == '=' = (key, dropTrailingSpaces $ dropInlineComment $ dropLeadingSpaces xs)
     lineTokenise ('#':_) key val = lineTokenise [] key val
     lineTokenise (x:xs) key val = lineTokenise xs (key <> [x]) val
     lineTokenise [] key val = (key,val)
@@ -119,7 +119,14 @@ isConfigKey s = [s] `isInfixOf` [ "username"
                                 , "secret_file"
                                 ]
 
-trimStart (x:xs) | isSpace x = trimStart xs
-                 | isAlphaNum x = x : xs
-trimStart (_:_) = []
-trimStart [] = []
+dropLeadingSpaces s = dropWhile isSpace s
+
+dropTrailingSpaces s = dropWhileEnd isSpace s
+
+dropInlineComment :: String -> String
+dropInlineComment l = go l []
+  where
+    go :: String -> String -> String
+    go (' ':'#':_) beforeC = beforeC
+    go (x:xs) beforeC = go xs (beforeC <> [x])
+    go [] _ = []
