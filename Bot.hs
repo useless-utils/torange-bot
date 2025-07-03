@@ -7,18 +7,21 @@ import System.Directory
 import System.FilePath
 import Data.Char
 import Data.List
+import System.IO
 
 defaultConfig :: Config
 defaultConfig = Config
   { username   = Nothing
   , secretFile = Nothing
   , twoFA      = Nothing
+  , configFile = "torange-bot.conf"
   }
 
 data Config = Config
   { username   :: Maybe String
   , secretFile :: Maybe FilePath  -- NO secret via cli.
   , twoFA      :: Maybe String
+  , configFile :: FilePath
   } deriving (Show, Eq)
 
 main :: IO ()
@@ -30,15 +33,25 @@ main = do
   secretEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET"
   twoFAEnv <- lookupEnv "TORANGE_BOT_REDDIT_2FA"
 
-  let conEnv = defaultConfig
+  let confEnv = defaultConfig
         { username = usernameEnv
         , twoFA = twoFAEnv
         }
 
+  confFileEither <- getConfigFile
+  confFilePath <- case confFileEither of
+                    Left msg -> do hPutStrLn stderr msg
+                                   die msg
+                    Right path -> pure path
+  confConfigFile <- parseConfigFile confFilePath defaultConfig
+
   let conf = defaultConfig
-        { username = username confArgs <|> username conEnv
-        , twoFA = twoFA confArgs <|> twoFA conEnv
+        { username = username confArgs <|> username confEnv <|> username confConfigFile
+        , twoFA = twoFA confArgs <|> twoFA confEnv <|> twoFA confConfigFile
+        , secretFile = secretFile confArgs <|> secretFile confEnv <|> secretFile confConfigFile
         }
+
+  print conf
 
   putStr "doesSecretHave2FA: "; print $ doesSecretHave2FA secretEnv
 
@@ -79,7 +92,7 @@ getConfigDir = do
 
 getConfigFile :: IO (Either String FilePath)
 getConfigFile = do
-  file <- fmap (</> "torange-bot.conf") getConfigDir
+  file <- fmap (</> configFile defaultConfig) getConfigDir
   fileCheck <- doesFileExist file
   if fileCheck
     then pure $ Right file
@@ -100,22 +113,30 @@ createConfigDir = do
     else do createDirectory confDir
             pure $ Right confDir
 
-parseConfigFile :: FilePath -> Config -> IO [(String, String)]
+parseConfigFile :: FilePath -> Config -> IO Config
 parseConfigFile file conf = do
   confFileLines <- lines <$> readFile file
-  pure $ linesToConf conf $ mapMaybe parseLines confFileLines
+  pure $ kvToConf conf $ mapMaybe parseLines confFileLines
   where
     parseLines line = case lineTokenise line [] [] of
       ([], []) -> Nothing
-      result -> Just result
+      (k,v) -> Just (k, Just v)
     lineTokenise (x:xs) key val
       | isSpace x = lineTokenise xs key val
       | x == '=' = (key, dropTrailingSpaces $ dropInlineComment $ dropLeadingSpaces xs)
       | otherwise = lineTokenise xs (key <> [x]) val
     lineTokenise [] _ _ = ([],[])
-    linesToConf c lines = lines
 
+    kvToConf c' (x:xs) = if isConfigKey $ fst x
+                         then kvToConf (kvToConfDo (fst x) (snd x) c') xs
+                         else kvToConf c' xs
+    kvToConf c' [] = c'
+    kvToConfDo k v c'' = case k of
+      "username"    -> c'' {username = v}
+      "secret_file" -> c'' {secretFile = v}
+      _             -> c''
 
+isConfigKey :: String -> Bool
 isConfigKey s = [s] `isInfixOf` [ "username"
                                 , "secret_file"
                                 ]
