@@ -32,17 +32,28 @@ main = do
   usernameEnv <- lookupEnv "TORANGE_BOT_REDDIT_USERNAME"
   secretEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET"
   twoFAEnv <- lookupEnv "TORANGE_BOT_REDDIT_2FA"
+  configFileEnv <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
 
   let confEnv = defaultConfig
         { username = usernameEnv
         , twoFA = twoFAEnv
         }
 
-  confFileEither <- getConfigFile
-  confFilePath <- case confFileEither of
-                    Left msg -> do hPutStrLn stderr msg
-                                   die msg
-                    Right path -> pure path
+  defConfFile <- getConfigFile
+  confFilePath <-
+    case configFileEnv of
+      Just f -> do ret <- doesFileExist f
+                   if ret
+                     then pure f
+                     else do die $ "ERROR: Could not open config file provided via "
+                               ++ "environment variable \"TORANGE_BOT_CONFIG_FILE="
+                               ++ f ++ "\". Aborting..."
+      Nothing -> case defConfFile of
+                   Left msg -> do hPutStrLn stderr msg
+                                  die msg
+                   Right path -> pure path
+
+  hPutStrLn stderr $ "LOG: Using config file: " ++ confFilePath
   confConfigFile <- parseConfigFile confFilePath defaultConfig
 
   let conf = defaultConfig
