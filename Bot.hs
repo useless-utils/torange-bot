@@ -31,6 +31,7 @@ main = do
 
   usernameEnv <- lookupEnv "TORANGE_BOT_REDDIT_USERNAME"
   secretEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET"
+  -- TODO secretFileEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET_FILE"
   twoFAEnv <- lookupEnv "TORANGE_BOT_REDDIT_2FA"
   configFileEnv <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
 
@@ -40,18 +41,23 @@ main = do
         }
 
   defConfFile <- getConfigFile
-  confFilePath <-
-    case configFileEnv of
-      Just f -> do ret <- doesFileExist f
-                   if ret
-                     then pure f
-                     else do die $ "ERROR: Could not open config file provided via "
-                               ++ "environment variable \"TORANGE_BOT_CONFIG_FILE="
-                               ++ f ++ "\". Aborting..."
-      Nothing -> case defConfFile of
-                   Left msg -> do hPutStrLn stderr msg
-                                  die msg
-                   Right path -> pure path
+
+  confFilePath <- do
+    let isEnv = isJust configFileEnv
+        isArgNotDef = configFile confArgs /= configFile defaultConfig
+
+    case (isArgNotDef, isEnv) of
+      (True, _) -> pure $ configFile confArgs
+      (_, True) -> pure $ fromJust configFileEnv
+      _         -> case defConfFile of
+                     Left msg -> do hPutStrLn stderr msg
+                                    die msg
+                     Right path -> pure path
+
+  checkConfFile <- doesFileExist confFilePath
+  if checkConfFile
+    then pure ()
+    else do die ("Provided config file: \"" ++ confFilePath ++ "\" doesn't exist. Aborting...")
 
   hPutStrLn stderr $ "LOG: Using config file: " ++ confFilePath
   confConfigFile <- parseConfigFile confFilePath defaultConfig
@@ -60,15 +66,10 @@ main = do
         { username = username confArgs <|> username confEnv <|> username confConfigFile
         , twoFA = twoFA confArgs <|> twoFA confEnv <|> twoFA confConfigFile
         , secretFile = secretFile confArgs <|> secretFile confEnv <|> secretFile confConfigFile
+        , configFile = confFilePath
         }
 
   print conf
-
-  putStr "doesSecretHave2FA: "; print $ doesSecretHave2FA secretEnv
-
-  putStrLn $ "Provided username: " <> (fromMaybe [] $ username conf)
-  putStrLn $ "Provided 2FA: " <> (fromMaybe [] $ twoFA conf)
-  -- putStrLn $ "Provided secretFile: " <> secretFile conf
 
 parseArgs :: [String] -> Config -> Config
 parseArgs args conf =
@@ -79,6 +80,8 @@ parseArgs args conf =
     ("-s":a:xs)            -> parseArgs xs conf {secretFile = Just a}
     ("--secret-file":a:xs) -> parseArgs xs conf {secretFile = Just a}
     ("--2fa":a:xs)         -> parseArgs xs conf {twoFA = Just a}
+    ("--config-file":a:xs) -> parseArgs xs conf {configFile = a}
+    ("-c":a:xs)            -> parseArgs xs conf {configFile = a}
     (_:xs)                 -> parseArgs xs conf
     []                     -> conf
 
