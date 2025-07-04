@@ -8,6 +8,7 @@ import System.FilePath
 import Data.Char
 import Data.List
 import System.IO
+import Control.Monad
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -54,10 +55,8 @@ main = do
                                     die msg
                      Right path -> pure path
 
-  checkConfFile <- doesFileExist confFilePath
-  if checkConfFile
-    then pure ()
-    else do die ("Provided config file: \"" ++ confFilePath ++ "\" doesn't exist. Aborting...")
+  doesFileExist confFilePath >>= \checkConfFile -> unless checkConfFile $
+    die ("Provided config file: \"" ++ confFilePath ++ "\" doesn't exist. Aborting...")
 
   hPutStrLn stderr $ "LOG: Using config file: " ++ confFilePath
   confConfigFile <- parseConfigFile confFilePath defaultConfig
@@ -127,6 +126,7 @@ createConfigDir = do
     else do createDirectory confDir
             pure $ Right confDir
 
+-- TODO Account for empty value e.g. key= # comment
 parseConfigFile :: FilePath -> Config -> IO Config
 parseConfigFile file conf = do
   confFileLines <- lines <$> readFile file
@@ -168,3 +168,4 @@ dropInlineComment l = go l []
     go (' ':'#':_) beforeC = beforeC
     go (x:xs) beforeC = go xs (beforeC <> [x])
     go _ beforeC = beforeC
+
