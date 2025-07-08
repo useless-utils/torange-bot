@@ -1,47 +1,60 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 import Reddit.Actions.Post
 import System.Environment
 import System.Exit
 import Data.Maybe
 import Control.Applicative
-import System.Directory
-import System.FilePath
 import Data.Char
 import Data.List
 import System.IO
 import Control.Monad
+import Path.Parse
+import Path.IO
+import Data.Text qualified as T
+
 
 defaultConfig :: Config
 defaultConfig = Config
   { username   = Nothing
   , secretFile = Nothing
   , twoFA      = Nothing
-  , configFile = "torange-bot.conf"
+  , configFile = Nothing
   }
 
 data Config = Config
   { username   :: Maybe String
-  , secretFile :: Maybe FilePath  -- NO secret via cli.
+  , secretFile :: Maybe (Path Abs File)  -- NO secret via cli.
   , twoFA      :: Maybe String
-  , configFile :: FilePath
+  , configFile :: Maybe (Path Abs File)
   } deriving (Show, Eq)
 
 main :: IO ()
 main = do
   args <- getArgs
-  let confArgs = parseArgs args defaultConfig
+  confArgs <- parseArgs args defaultConfig
 
   usernameEnv <- lookupEnv "TORANGE_BOT_REDDIT_USERNAME"
   secretEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET"
   -- TODO secretFileEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET_FILE"
   twoFAEnv <- lookupEnv "TORANGE_BOT_REDDIT_2FA"
-  configFileEnv <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
+  configFileEnv <- do
+         env <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
+         case env of
+           Just p -> Just <$> parseFilePath (T.pack p)
+           Nothing -> pure Nothing
+
+      -- do
+         -- env <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
+         -- pure $ parseFilePath $ (T.pack) env
 
   let confEnv = defaultConfig
-        { username = usernameEnv
-        , twoFA = twoFAEnv
-        }
+                { username = usernameEnv
+                , twoFA = twoFAEnv
+                , configFile = configFileEnv
+                }
 
-  defConfFile <- getConfigFile
+  defConfFile <- getDefConfigFile
 
   confFilePath <- do
     let isEnv = isJust configFileEnv
@@ -49,17 +62,14 @@ main = do
 
     case (isArgNotDef, isEnv) of
       (True, _) -> pure $ configFile confArgs
-      (_, True) -> pure $ fromJust configFileEnv
+      (_, True) -> pure $ configFileEnv
       _         -> case defConfFile of
                      Left msg -> do hPutStrLn stderr msg
                                     die msg
-                     Right path -> pure path
+                     Right path -> pure $ Just path
 
-  doesFileExist confFilePath >>= \checkConfFile -> unless checkConfFile $
-    die ("Provided config file: \"" ++ confFilePath ++ "\" doesn't exist. Aborting...")
-
-  hPutStrLn stderr $ "LOG: Using config file: " ++ confFilePath
-  confConfigFile <- parseConfigFile confFilePath defaultConfig
+  hPutStrLn stderr $ "LOG: Using config file: " ++ (toFilePath $ fromJust confFilePath)
+  confConfigFile <- parseConfigFile (fromJust confFilePath) defaultConfig
 
   let conf = defaultConfig
         { username = username confArgs <|> username confEnv <|> username confConfigFile
@@ -69,20 +79,28 @@ main = do
         }
 
   print conf
+  let sf = toFilePath $ fromJust $ secretFile conf
+  print sf
+  -- doesFileExistOrDie sf $ "Secret file doesn't exist."
 
-parseArgs :: [String] -> Config -> Config
+
+parseArgs :: [String] -> Config -> IO Config
 parseArgs args conf =
   case args of
-    ("--":_)               -> conf
+    ("--":_)               -> pure conf
     ("-u":a:xs)            -> parseArgs xs conf {username = Just a}
     ("--username":a:xs)    -> parseArgs xs conf {username = Just a}
-    ("-s":a:xs)            -> parseArgs xs conf {secretFile = Just a}
-    ("--secret-file":a:xs) -> parseArgs xs conf {secretFile = Just a}
+    ("-s":a:xs)            -> do pa <- parseFilePath $ T.pack a
+                                 parseArgs xs conf {secretFile = Just pa}
+    ("--secret-file":a:xs) -> do pa <- parseFilePath $ T.pack a
+                                 parseArgs xs conf {secretFile = Just pa}
     ("--2fa":a:xs)         -> parseArgs xs conf {twoFA = Just a}
-    ("--config-file":a:xs) -> parseArgs xs conf {configFile = a}
-    ("-c":a:xs)            -> parseArgs xs conf {configFile = a}
+    ("--config-file":a:xs) -> do pa <- parseFilePath $ T.pack a
+                                 parseArgs xs conf {configFile = Just pa}
+    ("-c":a:xs)            -> do pa <- parseFilePath $ T.pack a
+                                 parseArgs xs conf {configFile = Just pa}
     (_:xs)                 -> parseArgs xs conf
-    []                     -> conf
+    []                     -> pure conf
 
 doesSecretHave2FA :: Maybe String -> Bool
 doesSecretHave2FA (Just env) = go env
@@ -93,44 +111,29 @@ doesSecretHave2FA (Just env) = go env
     go [] = False
 doesSecretHave2FA Nothing = False
 
-getXdgConfigDir :: IO FilePath
-getXdgConfigDir = getXdgDirectory XdgConfig "torange-bot"
+getXdgConfigDir :: IO (Path Abs Dir)
+getXdgConfigDir = getXdgDir XdgConfig $ Just [reldir|torange-bot|]
 
-getConfigDir :: IO FilePath
+getConfigDir :: IO (Path Abs Dir)
 getConfigDir = do
-  doesXdgConfDirExists <- doesDirectoryExist =<< getXdgConfigDir
-  if doesXdgConfDirExists
-    then getXdgConfigDir
-    else makeRelativeToCurrentDirectory =<< getCurrentDirectory
+  doesIt <- doesDirExist =<< getXdgConfigDir
+  if doesIt
+  then getXdgConfigDir
+  else getCurrentDir
 
-getConfigFile :: IO (Either String FilePath)
-getConfigFile = do
-  file <- fmap (</> configFile defaultConfig) getConfigDir
+getDefConfigFile :: IO (Either String (Path Abs File))
+getDefConfigFile = do
+  file <- makeAbsolute [relfile|torange-bot.conf|]
   fileCheck <- doesFileExist file
   if fileCheck
     then pure $ Right file
-    else pure $ Left $ "Default config file \"" ++ file ++ "\" doesn't exist."
-
-doesConfigFileExist :: IO Bool
-doesConfigFileExist = do
-  confFile <- getConfigFile
-  case confFile of
-    Right _ -> pure True
-    Left  _ -> pure False
-
-createConfigDir :: IO (Either FilePath FilePath)
-createConfigDir = do
-  confDir <- getConfigDir
-  if confDir == "."
-    then pure $ Left confDir  -- using current directory as conf dir
-    else do createDirectory confDir
-            pure $ Right confDir
+    else pure $ Left $ "Default config file \"" ++ toFilePath file ++ "\" doesn't exist."
 
 -- TODO Account for empty value e.g. key= # comment
-parseConfigFile :: FilePath -> Config -> IO Config
+parseConfigFile :: Path Abs File -> Config -> IO Config
 parseConfigFile file conf = do
-  confFileLines <- lines <$> readFile file
-  pure $ kvToConf conf $ mapMaybe parseLines confFileLines
+  confFileLines <- lines <$> (readFile $ toFilePath file)
+  kvToConf conf $ mapMaybe parseLines confFileLines
   where
     parseLines line = case lineTokenise line [] [] of
       ([], []) -> Nothing
@@ -140,15 +143,20 @@ parseConfigFile file conf = do
       | x == '=' = (key, dropTrailingSpaces $ dropInlineComment $ dropLeadingSpaces xs)
       | otherwise = lineTokenise xs (key <> [x]) val
     lineTokenise [] _ _ = ([],[])
-
+    kvToConf :: Config -> [(String, Maybe String)] -> IO Config
     kvToConf c' (x:xs) = if isConfigKey $ fst x
-                         then kvToConf (kvToConfDo (fst x) (snd x) c') xs
+                         then (kvToConfDo (fst x) (snd x) c') >>= \c'' -> kvToConf c'' xs
                          else kvToConf c' xs
-    kvToConf c' [] = c'
+    kvToConf c' [] = pure c'
+    kvToConfDo :: String -> Maybe String -> Config -> IO Config
     kvToConfDo k v c'' = case k of
-      "username"    -> c'' {username = v}
-      "secret_file" -> c'' {secretFile = v}
-      _             -> c''
+      "username"    -> pure c'' {username = v}
+      "secret_file" -> case v of
+                         Just v' -> do
+                                  path <- parseFilePath (T.pack v')
+                                  pure c'' {secretFile = Just path}
+                         Nothing -> pure c'' {secretFile = Nothing}
+      _             -> pure c''
 
 isConfigKey :: String -> Bool
 isConfigKey s = [s] `isInfixOf` [ "username"
@@ -169,3 +177,5 @@ dropInlineComment l = go l []
     go (x:xs) beforeC = go xs (beforeC <> [x])
     go _ beforeC = beforeC
 
+doesFileExistOrDie :: Path b File -> String -> IO ()
+doesFileExistOrDie f msg = doesFileExist f >>= \r -> unless r $ die msg
