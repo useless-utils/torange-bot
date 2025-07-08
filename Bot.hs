@@ -34,24 +34,17 @@ main = do
   args <- getArgs
   confArgs <- parseArgs args defaultConfig
 
-  usernameEnv <- lookupEnv "TORANGE_BOT_REDDIT_USERNAME"
-  secretEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET"
-  -- TODO secretFileEnv <- lookupEnv "TORANGE_BOT_REDDIT_SECRET_FILE"
-  twoFAEnv <- lookupEnv "TORANGE_BOT_REDDIT_2FA"
-  configFileEnv <- do
-         env <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
-         case env of
-           Just p -> Just <$> parseFilePath (T.pack p)
-           Nothing -> pure Nothing
-
-      -- do
-         -- env <- lookupEnv "TORANGE_BOT_CONFIG_FILE"
-         -- pure $ parseFilePath $ (T.pack) env
+  usernameEnv   <- lookupEnv          "TORANGE_BOT_REDDIT_USERNAME"
+  secretEnv     <- lookupEnv          "TORANGE_BOT_REDDIT_SECRET"
+  secretFileEnv <- lookupEnvFilePath  "TORANGE_BOT_REDDIT_SECRET_FILE"
+  twoFAEnv      <- lookupEnv          "TORANGE_BOT_REDDIT_2FA"
+  configFileEnv <- lookupEnvFilePath  "TORANGE_BOT_CONFIG_FILE"
 
   let confEnv = defaultConfig
-                { username = usernameEnv
-                , twoFA = twoFAEnv
+                { username   = usernameEnv
+                , twoFA      = twoFAEnv
                 , configFile = configFileEnv
+                , secretFile = secretFileEnv
                 }
 
   defConfFile <- getDefConfigFile
@@ -179,3 +172,8 @@ dropInlineComment l = go l []
 
 doesFileExistOrDie :: Path b File -> String -> IO ()
 doesFileExistOrDie f msg = doesFileExist f >>= \r -> unless r $ die msg
+
+lookupEnvFilePath :: String -> IO (Maybe (Path Abs File))
+lookupEnvFilePath env = lookupEnv env >>= \case
+  Just p -> Just <$> parseFilePath (T.pack p)
+  Nothing -> pure Nothing
