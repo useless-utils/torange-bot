@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE LambdaCase #-}
 
+import Reddit
 import Reddit.Actions.Post
+
 import System.Environment
 import System.Exit
 import Data.Maybe
@@ -17,17 +20,21 @@ import Data.Text qualified as T
 
 defaultConfig :: Config
 defaultConfig = Config
-  { username   = Nothing
-  , secretFile = Nothing
-  , twoFA      = Nothing
-  , configFile = Nothing
+  { username         = Nothing
+  , passwordFile     = Nothing
+  , clientId         = Nothing
+  , clientSecretFile = Nothing
+  , twoFA            = Nothing
+  , configFile       = Nothing
   }
 
 data Config = Config
-  { username   :: Maybe String
-  , secretFile :: Maybe (Path Abs File)  -- NO secret via cli.
-  , twoFA      :: Maybe String
-  , configFile :: Maybe (Path Abs File)
+  { username         :: Maybe String
+  , passwordFile     :: Maybe (Path Abs File)
+  , clientId         :: Maybe String
+  , clientSecretFile :: Maybe (Path Abs File)  -- NO secret via cli.
+  , twoFA            :: Maybe String
+  , configFile       :: Maybe (Path Abs File)
   } deriving (Show, Eq)
 
 main :: IO ()
@@ -35,66 +42,75 @@ main = do
   args <- getArgs
   confArgs <- parseArgs args defaultConfig
 
-  usernameEnv   <- lookupEnv          "TORANGE_BOT_REDDIT_USERNAME"
-  secretEnv     <- lookupEnv          "TORANGE_BOT_REDDIT_SECRET"
-  secretFileEnv <- lookupEnvFilePath  "TORANGE_BOT_REDDIT_SECRET_FILE"
-  twoFAEnv      <- lookupEnv          "TORANGE_BOT_REDDIT_2FA"
-  configFileEnv <- lookupEnvFilePath  "TORANGE_BOT_CONFIG_FILE"
-
-  let confEnv = defaultConfig
-                { username   = usernameEnv
-                , twoFA      = twoFAEnv
-                , configFile = configFileEnv
-                , secretFile = secretFileEnv
-                }
+  confEnv <- parseEnv defaultConfig
 
   defConfFile <- getDefConfigFile
-
   confFilePath <- do
-    let isEnv = isJust configFileEnv
-        isArgNotDef = configFile confArgs /= configFile defaultConfig
-
-    case (isArgNotDef, isEnv) of
+    let isEnv = isJust $ configFile confEnv
+        isArgEqualDef = configFile confArgs == case defConfFile of
+                                                 Left _ -> Nothing
+                                                 Right p -> Just p
+    case (isArgEqualDef, isEnv) of
       (True, _) -> pure $ configFile confArgs
-      (_, True) -> pure $ configFileEnv
+      (_, True) -> pure $ configFile confEnv
       _         -> case defConfFile of
                      Left msg -> do hPutStrLn stderr msg
                                     die msg
                      Right path -> pure $ Just path
 
-  hPutStrLn stderr $ "LOG: Using config file: " ++ (toFilePath $ fromJust confFilePath)
-  confConfigFile <- parseConfigFile (fromJust confFilePath) defaultConfig
+  hPutStrLn stderr $ "LOG: Using config file: " ++ toFilePath (fromJust confFilePath)
+  confFile <- parseConfigFile (fromJust confFilePath) defaultConfig
 
   let conf = defaultConfig
-        { username = username confArgs <|> username confEnv <|> username confConfigFile
-        , twoFA = twoFA confArgs <|> twoFA confEnv <|> twoFA confConfigFile
-        , secretFile = secretFile confArgs <|> secretFile confEnv <|> secretFile confConfigFile
-        , configFile = confFilePath
+        { username         = username confArgs         <|> username confEnv         <|> username confFile
+        , passwordFile     = passwordFile confArgs     <|> passwordFile confEnv     <|> passwordFile confFile
+        , clientId         = clientId confArgs         <|> clientId confEnv         <|> clientId confFile
+        , clientSecretFile = clientSecretFile confArgs <|> clientSecretFile confEnv <|> clientSecretFile confFile
+        , twoFA            = twoFA confArgs            <|> twoFA confEnv            <|> twoFA confFile
+        , configFile       = confFilePath
         }
 
   print conf
-  let sf = toFilePath $ fromJust $ secretFile conf
-  print sf
-  -- doesFileExistOrDie sf $ "Secret file doesn't exist."
+  -- passwordEnv     <- lookupEnv "TORANGE_BOT_REDDIT_PASSWORD"
+  -- clientSecretEnv <- lookupEnv "TORANGE_BOT_REDDIT_CLIENT_SECRET"
+  -- let clientParams = ClientParams
+
+  print $ toFilePath $ fromJust $ clientSecretFile conf
 
 
 parseArgs :: [String] -> Config -> IO Config
 parseArgs args conf =
   case args of
-    ("--":_)               -> pure conf
-    ("-u":a:xs)            -> parseArgs xs conf {username = Just a}
-    ("--username":a:xs)    -> parseArgs xs conf {username = Just a}
-    ("-s":a:xs)            -> do pa <- parseFilePath $ T.pack a
-                                 parseArgs xs conf {secretFile = Just pa}
-    ("--secret-file":a:xs) -> do pa <- parseFilePath $ T.pack a
-                                 parseArgs xs conf {secretFile = Just pa}
-    ("--2fa":a:xs)         -> parseArgs xs conf {twoFA = Just a}
-    ("--config-file":a:xs) -> do pa <- parseFilePath $ T.pack a
-                                 parseArgs xs conf {configFile = Just pa}
-    ("-c":a:xs)            -> do pa <- parseFilePath $ T.pack a
-                                 parseArgs xs conf {configFile = Just pa}
-    (_:xs)                 -> parseArgs xs conf
-    []                     -> pure conf
+    ("--":_)                      -> pure conf
+    ("-u":a:xs)                   -> parseArgs xs conf {username = Just a}
+    ("--username":a:xs)           -> parseArgs xs conf {username = Just a}
+    ("-p":a:xs)                   -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {passwordFile = Just x}
+    ("--password-file":a:xs)      -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {passwordFile = Just x}
+    ("--client-id":a:xs)          -> parseArgs xs conf {clientId = Just a}
+    ("--client-secret-file":a:xs) -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {clientSecretFile = Just x}
+    ("--2fa":a:xs)                -> parseArgs xs conf {twoFA = Just a}
+    ("-c":a:xs)                   -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {configFile = Just x}
+    ("--config-file":a:xs)        -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {configFile = Just x}
+    (_:xs)                        -> parseArgs xs conf
+    []                            -> pure conf
+
+parseEnv :: Config -> IO Config
+parseEnv conf = do
+  usernameEnv         <- lookupEnv         "TORANGE_BOT_REDDIT_USERNAME"
+  passwordFileEnv     <- lookupEnvFilePath "TORANGE_BOT_REDDIT_PASSWORD_FILE"
+  clientIdEnv         <- lookupEnv         "TORANGE_BOT_REDDIT_CLIENT_ID"
+  clientSecretFileEnv <- lookupEnvFilePath "TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE"
+  twoFAEnv            <- lookupEnv         "TORANGE_BOT_REDDIT_2FA"
+  configFileEnv       <- lookupEnvFilePath "TORANGE_BOT_CONFIG_FILE"
+
+  pure conf
+    { username         = usernameEnv
+    , passwordFile     = passwordFileEnv
+    , clientId         = clientIdEnv
+    , clientSecretFile = clientSecretFileEnv
+    , twoFA            = twoFAEnv
+    , configFile       = configFileEnv
+    }
 
 doesSecretHave2FA :: Maybe String -> Bool
 doesSecretHave2FA (Just env) = go env
@@ -126,7 +142,7 @@ getDefConfigFile = do
 -- TODO Account for empty value e.g. key= # comment
 parseConfigFile :: Path Abs File -> Config -> IO Config
 parseConfigFile file conf = do
-  confFileLines <- lines <$> (readFile $ toFilePath file)
+  confFileLines <- lines <$> readFile (toFilePath file)
   kvToConf conf $ mapMaybe parseLines confFileLines
   where
     parseLines line = case lineTokenise line [] [] of
@@ -139,7 +155,7 @@ parseConfigFile file conf = do
     lineTokenise [] _ _ = ([],[])
     kvToConf :: Config -> [(String, Maybe String)] -> IO Config
     kvToConf c' (x:xs) = if isConfigKey $ fst x
-                         then (kvToConfDo (fst x) (snd x) c') >>= \c'' -> kvToConf c'' xs
+                         then uncurry kvToConfDo x c' >>= \c'' -> kvToConf c'' xs
                          else kvToConf c' xs
     kvToConf c' [] = pure c'
     kvToConfDo :: String -> Maybe String -> Config -> IO Config
@@ -148,8 +164,8 @@ parseConfigFile file conf = do
       "secret_file" -> case v of
                          Just v' -> do
                                   path <- parseFilePath (T.pack v')
-                                  pure c'' {secretFile = Just path}
-                         Nothing -> pure c'' {secretFile = Nothing}
+                                  pure c'' {clientSecretFile = Just path}
+                         Nothing -> pure c'' {clientSecretFile = Nothing}
       _             -> pure c''
 
 isConfigKey :: String -> Bool
@@ -158,10 +174,10 @@ isConfigKey s = [s] `isInfixOf` [ "username"
                                 ]
 
 dropLeadingSpaces :: String -> String
-dropLeadingSpaces s = dropWhile isSpace s
+dropLeadingSpaces = dropWhile isSpace
 
 dropTrailingSpaces :: String -> String
-dropTrailingSpaces s = dropWhileEnd isSpace s
+dropTrailingSpaces = dropWhileEnd isSpace
 
 dropInlineComment :: String -> String
 dropInlineComment l = go l []
