@@ -47,11 +47,11 @@ main = do
   defConfFile <- getDefConfigFile
   confFilePath <- do
     let isEnv = isJust $ configFile confEnv
-        isArgEqualDef = configFile confArgs == case defConfFile of
-                                                 Left _ -> Nothing
-                                                 Right p -> Just p
-    case (isArgEqualDef, isEnv) of
-      (True, _) -> pure $ configFile confArgs
+        isArg = configFile confArgs /= case defConfFile of
+                                         Left _ -> Nothing
+                                         Right p -> Just p
+    case (isArg, isEnv) of
+      (True, _) -> pure $ configFile confArgs  -- use arg if not the same as def
       (_, True) -> pure $ configFile confEnv
       _         -> case defConfFile of
                      Left msg -> do hPutStrLn stderr msg
