@@ -71,12 +71,29 @@ main = do
         }
 
   print conf
-  -- passwordEnv     <- lookupEnv "TORANGE_BOT_REDDIT_PASSWORD"
-  -- clientSecretEnv <- lookupEnv "TORANGE_BOT_REDDIT_CLIENT_SECRET"
-  -- let clientParams = ClientParams
 
-  print $ toFilePath $ fromJust $ clientSecretFile conf
+  passwordEnv     <- lookupEnv "TORANGE_BOT_REDDIT_PASSWORD"
+  clientSecretEnv <- lookupEnv "TORANGE_BOT_REDDIT_CLIENT_SECRET"
 
+  vUsername <- case conf.username of
+                 Just u -> pure u
+                 Nothing -> die "Username not provided."
+
+  vPassword <- do
+    -- expects password to be the sole contents of the file:
+    passFromFile <- case conf.passwordFile of
+                      Just f -> readFile $ toFilePath f
+                      Nothing -> pure ""
+
+    case passwordEnv of
+      Just p -> pure p
+      Nothing -> if null passFromFile
+                 then die "Password not provided."
+                 else pure passFromFile
+
+  -- tests
+  print vUsername
+  print $ toFilePath $ fromJust conf.clientSecretFile
 
 parseArgs :: [String] -> Config -> IO Config
 parseArgs args conf =
@@ -194,3 +211,4 @@ lookupEnvFilePath :: String -> IO (Maybe (Path Abs File))
 lookupEnvFilePath env = lookupEnv env >>= \case
   Just p -> Just <$> parseFilePath (T.pack p)
   Nothing -> pure Nothing
+
