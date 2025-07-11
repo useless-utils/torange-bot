@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, QuasiQuotes #-}
+{-# LANGUAGE OverloadedRecordDot, NoFieldSelectors #-}
+
 
 import Reddit
 import Reddit.Actions.Post
@@ -16,7 +17,6 @@ import Control.Monad
 import Path.Parse
 import Path.IO
 import Data.Text qualified as T
-
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -46,13 +46,13 @@ main = do
 
   defConfFile <- getDefConfigFile
   confFilePath <- do
-    let isEnv = isJust $ configFile confEnv
-        isArg = configFile confArgs /= case defConfFile of
+    let isEnv = isJust confEnv.configFile
+        isArg = confArgs.configFile /= case defConfFile of
                                          Left _ -> Nothing
                                          Right p -> Just p
     case (isArg, isEnv) of
-      (True, _) -> pure $ configFile confArgs  -- use arg if not the same as def
-      (_, True) -> pure $ configFile confEnv
+      (True, _) -> pure confArgs.configFile  -- use arg if not the same as def
+      (_, True) -> pure confEnv.configFile
       _         -> case defConfFile of
                      Left msg -> do hPutStrLn stderr msg
                                     die msg
@@ -62,11 +62,11 @@ main = do
   confFile <- parseConfigFile (fromJust confFilePath) defaultConfig
 
   let conf = defaultConfig
-        { username         = username confArgs         <|> username confEnv         <|> username confFile
-        , passwordFile     = passwordFile confArgs     <|> passwordFile confEnv     <|> passwordFile confFile
-        , clientId         = clientId confArgs         <|> clientId confEnv         <|> clientId confFile
-        , clientSecretFile = clientSecretFile confArgs <|> clientSecretFile confEnv <|> clientSecretFile confFile
-        , twoFA            = twoFA confArgs            <|> twoFA confEnv            <|> twoFA confFile
+        { username         = confArgs.username         <|> confEnv.username         <|> confFile.username
+        , passwordFile     = confArgs.passwordFile     <|> confEnv.passwordFile     <|> confFile.passwordFile
+        , clientId         = confArgs.clientId         <|> confEnv.clientId         <|> confFile.clientId
+        , clientSecretFile = confArgs.clientSecretFile <|> confEnv.clientSecretFile <|> confFile.clientSecretFile
+        , twoFA            = confArgs.twoFA            <|> confEnv.twoFA            <|> confFile.twoFA
         , configFile       = confFilePath
         }
 
