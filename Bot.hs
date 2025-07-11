@@ -75,10 +75,10 @@ main = do
   passwordEnv     <- lookupEnv "TORANGE_BOT_REDDIT_PASSWORD"
   clientSecretEnv <- lookupEnv "TORANGE_BOT_REDDIT_CLIENT_SECRET"
 
-  vUsername <- fromConfOrDie conf.username "ERROR: Username not provided."
-  vPassword <- fromFileOrEnvOrDie conf.passwordFile passwordEnv
-  vClientId <- fromConfOrDie conf.clientId "ERROR: Client ID not provided."
-  vClientSecret <- fromFileOrEnvOrDie conf.clientSecretFile clientSecretEnv
+  vUsername     <- fromConfOrDie      conf.username                         "ERROR: Username not provided."
+  vPassword     <- fromFileOrEnvOrDie conf.passwordFile passwordEnv         "ERROR: Password not provided."
+  vClientId     <- fromConfOrDie      conf.clientId                         "ERROR: Client ID not provided."
+  vClientSecret <- fromFileOrEnvOrDie conf.clientSecretFile clientSecretEnv "ERROR: Client secret not provided."
 
   -- tests
   print vUsername
@@ -88,7 +88,7 @@ main = do
       fromConfOrDie c errMsg = case c of
                  Just a -> pure a
                  Nothing -> die errMsg
-      fromFileOrEnvOrDie mFile mEnv = do
+      fromFileOrEnvOrDie mFile mEnv errMsg = do
         -- expects to be the sole contents of the file:
         contents <- case mFile of
                           Just f -> readFile $ toFilePath f
@@ -97,7 +97,7 @@ main = do
         case mEnv of
           Just p -> pure p
           Nothing -> if null contents
-                     then die "Password not provided."
+                     then die errMsg
                      else pure contents
 
 parseArgs :: [String] -> Config -> IO Config
