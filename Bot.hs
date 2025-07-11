@@ -83,22 +83,21 @@ main = do
   -- tests
   print vUsername
   print $ toFilePath $ fromJust conf.clientSecretFile
+  where
+    fromConfOrDie c errMsg = case c of
+               Just a -> pure a
+               Nothing -> die errMsg
+    fromFileOrEnvOrDie mFile mEnv errMsg = do
+      -- expects to be the sole contents of the file:
+      contents <- case mFile of
+                        Just f -> readFile $ toFilePath f
+                        Nothing -> pure ""
 
-    where
-      fromConfOrDie c errMsg = case c of
-                 Just a -> pure a
-                 Nothing -> die errMsg
-      fromFileOrEnvOrDie mFile mEnv errMsg = do
-        -- expects to be the sole contents of the file:
-        contents <- case mFile of
-                          Just f -> readFile $ toFilePath f
-                          Nothing -> pure ""
-
-        case mEnv of
-          Just p -> pure p
-          Nothing -> if null contents
-                     then die errMsg
-                     else pure contents
+      case mEnv of
+        Just p -> pure p
+        Nothing -> if null contents
+                   then die errMsg
+                   else pure contents
 
 parseArgs :: [String] -> Config -> IO Config
 parseArgs args conf =
