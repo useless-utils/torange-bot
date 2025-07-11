@@ -47,9 +47,11 @@ main = do
   defConfFile <- getDefConfigFile
   confFilePath <- do
     let isEnv = isJust confEnv.configFile
-        isArg = confArgs.configFile /= case defConfFile of
-                                         Left _ -> Nothing
-                                         Right p -> Just p
+        isArg = isJust confArgs.configFile
+                && confArgs.configFile /= case defConfFile of
+                                            Left _ -> Nothing
+                                            Right p -> Just p
+
     case (isArg, isEnv) of
       (True, _) -> pure confArgs.configFile  -- use arg if not the same as def
       (_, True) -> pure confEnv.configFile
@@ -79,9 +81,11 @@ main = do
   vPassword     <- fromFileOrEnvOrDie conf.passwordFile passwordEnv         "ERROR: Password not provided."
   vClientId     <- fromConfOrDie      conf.clientId                         "ERROR: Client ID not provided."
   vClientSecret <- fromFileOrEnvOrDie conf.clientSecretFile clientSecretEnv "ERROR: Client secret not provided."
+  let vPass = vPassword ++ maybe [] (":" ++) conf.twoFA
 
   -- tests
   print vUsername
+  print vPass
   print $ toFilePath $ fromJust conf.clientSecretFile
   where
     fromConfOrDie c errMsg = case c of
