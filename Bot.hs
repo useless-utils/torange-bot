@@ -3,9 +3,9 @@
 {-# LANGUAGE OverloadedRecordDot, NoFieldSelectors #-}
 
 
-import Reddit
-import Reddit.Login qualified
-import Reddit.Actions.Post
+import Network.HTTP.Client
+import Network.HTTP.Client.TLS
+import Data.ByteString.Char8 qualified as C
 
 import System.Environment
 import System.Exit
@@ -63,7 +63,6 @@ main = do
                      Left msg -> do die msg
 
   confFile <- parseConfigFile vConfFilePath defaultConfig
-  print confFile
 
   let conf = defaultConfig
         { username         = confArgs.username         <|> confEnv.username         <|> confFile.username
@@ -87,20 +86,6 @@ main = do
   print conf
   print vUsername
   print vClientId
-
-  let clientParams = ClientParams (T.pack vClientId) (T.pack vClientSecret)
-      ropts = defaultRedditOptions
-              { customUserAgent = Just "torange-bot/0.1 by /u/UnclearVoyant"
-              }
-
-  lr <- runRedditWith ropts $ Reddit.Login.login (T.pack vUsername) (T.pack vPass) clientParams
-  loginDetails <- case lr of
-    Left err -> error ("Login failed: " ++ show err)
-    Right details -> pure details
-  r <- runRedditWith ropts { loginMethod = StoredDetails loginDetails }
-       $ submitLink (R "LearnToReddit") "Testing my little link-posting app" "https://www.google.com/"
-
-  print r
 
   where
     fromConfOrDie :: Maybe String -> String -> IO String
