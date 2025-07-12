@@ -4,6 +4,7 @@
 
 
 import Reddit
+import Reddit.Login qualified
 import Reddit.Actions.Post
 
 import System.Environment
@@ -61,8 +62,8 @@ main = do
                      Right p -> pure p
                      Left msg -> do die msg
 
-  hPutStrLn stderr $ "LOG: Using config file: " ++ toFilePath vConfFilePath
   confFile <- parseConfigFile vConfFilePath defaultConfig
+  print confFile
 
   let conf = defaultConfig
         { username         = confArgs.username         <|> confEnv.username         <|> confFile.username
@@ -72,8 +73,6 @@ main = do
         , twoFA            = confArgs.twoFA            <|> confEnv.twoFA            <|> confFile.twoFA
         , configFile       = Nothing
         }
-
-  print conf
 
   passwordEnv     <- lookupEnv "TORANGE_BOT_REDDIT_PASSWORD"
   clientSecretEnv <- lookupEnv "TORANGE_BOT_REDDIT_CLIENT_SECRET"
@@ -85,13 +84,30 @@ main = do
   let vPass = vPassword ++ maybe [] (":" ++) conf.twoFA
 
   -- tests
+  print conf
   print vUsername
   print vClientId
 
+  let clientParams = ClientParams (T.pack vClientId) (T.pack vClientSecret)
+      ropts = defaultRedditOptions
+              { customUserAgent = Just "torange-bot/0.1 by /u/UnclearVoyant"
+              }
+
+  lr <- runRedditWith ropts $ Reddit.Login.login (T.pack vUsername) (T.pack vPass) clientParams
+  loginDetails <- case lr of
+    Left err -> error ("Login failed: " ++ show err)
+    Right details -> pure details
+  r <- runRedditWith ropts { loginMethod = StoredDetails loginDetails }
+       $ submitLink (R "LearnToReddit") "Testing my little link-posting app" "https://www.google.com/"
+
+  print r
+
   where
+    fromConfOrDie :: Maybe String -> String -> IO String
     fromConfOrDie c errMsg = case c of
                Just a -> pure a
                Nothing -> die errMsg
+    fromFileOrEnvOrDie :: Maybe (Path b t) -> Maybe String -> String -> IO String
     fromFileOrEnvOrDie mFile mEnv errMsg = do
       -- expects to be the sole contents of the file:
       contents <- case mFile of
@@ -185,18 +201,21 @@ parseConfigFile file conf = do
                          else kvToConf c' xs
     kvToConf c' [] = pure c'
     kvToConfDo :: String -> Maybe String -> Config -> IO Config
-    kvToConfDo k v c'' = case k of
-      "username"    -> pure c'' {username = v}
-      "secret_file" -> case v of
-                         Just v' | not (null v') -> do
-                                     path <- parseFilePath (T.pack v')
-                                     pure c'' {clientSecretFile = Just path}
-                         _ -> pure c'' {clientSecretFile = Nothing}
-      _             -> pure c''
+    kvToConfDo k v c = case k of
+      "username"           -> pure c {username = v}
+      "password_file"      -> vCheckParsePath (\p c' -> c' {passwordFile = p}) v c
+      "client_id"          -> pure c {clientId = v}
+      "client_secret_file" -> vCheckParsePath (\p c' -> c' {clientSecretFile = p}) v c
+      _                    -> pure c
+    vCheckParsePath setter v c = do
+      p <- traverse (parseFilePath . T.pack) v
+      pure $ setter p c
 
 isConfigKey :: String -> Bool
 isConfigKey s = [s] `isInfixOf` [ "username"
-                                , "secret_file"
+                                , "password_file"
+                                , "client_id"
+                                , "client_secret_file"
                                 ]
 
 dropLeadingSpaces :: String -> String
