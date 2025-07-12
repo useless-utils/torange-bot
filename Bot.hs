@@ -16,7 +16,6 @@ import System.IO
 import Path.Parse
 import Path.IO
 import Data.Text qualified as T
-import Debug.Trace
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -48,7 +47,6 @@ main = do
   confFilePath <- do
     let isEnv = isJust confEnv.configFile
         isArg = isJust confArgs.configFile
-    traceShow ("isEnv", isEnv, "isArg", isArg) pure ()
     case (isArg, isEnv) of
       (True, _) -> case confArgs.configFile of
                      Just path -> pure $ Right path
@@ -59,7 +57,6 @@ main = do
       _         -> case defConfFile of
                      Left msg -> pure $ Left msg
                      Right path -> pure $ Right path
-
   vConfFilePath <- case confFilePath of
                      Right p -> pure p
                      Left msg -> do die msg
@@ -193,10 +190,9 @@ parseConfigFile file conf = do
       "username"    -> pure c'' {username = v}
       "secret_file" -> case v of
                          Just v' | not (null v') -> do
-                                     traceShow ("value of v' 1: ", v') pure ()
                                      path <- parseFilePath (T.pack v')
                                      pure c'' {clientSecretFile = Just path}
-                         _ -> traceShow ("value of v' 2: ", v, "So defaulting to Nothing!") pure c'' {clientSecretFile = Nothing}
+                         _ -> pure c'' {clientSecretFile = Nothing}
       _             -> pure c''
 
 isConfigKey :: String -> Bool
