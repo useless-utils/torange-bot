@@ -86,9 +86,8 @@ main = do
 
   -- tests
   print vUsername
-  print vPass
   print vClientId
-  print vClientSecret
+
   where
     fromConfOrDie c errMsg = case c of
                Just a -> pure a
