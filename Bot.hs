@@ -13,10 +13,10 @@ import Control.Applicative
 import Data.Char
 import Data.List
 import System.IO
-import Control.Monad
 import Path.Parse
 import Path.IO
 import Data.Text qualified as T
+import Debug.Trace
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -48,20 +48,24 @@ main = do
   confFilePath <- do
     let isEnv = isJust confEnv.configFile
         isArg = isJust confArgs.configFile
-                && confArgs.configFile /= case defConfFile of
-                                            Left _ -> Nothing
-                                            Right p -> Just p
-
+    traceShow ("isEnv", isEnv, "isArg", isArg) pure ()
     case (isArg, isEnv) of
-      (True, _) -> pure confArgs.configFile  -- use arg if not the same as def
-      (_, True) -> pure confEnv.configFile
+      (True, _) -> case confArgs.configFile of
+                     Just path -> pure $ Right path
+                     Nothing -> pure $ Left "Couldn't get config file from args."
+      (_, True) -> case confEnv.configFile of
+                     Just path -> pure $ Right path
+                     Nothing -> pure $ Left "Couldn't get config file from args."
       _         -> case defConfFile of
-                     Left msg -> do hPutStrLn stderr msg
-                                    die msg
-                     Right path -> pure $ Just path
+                     Left msg -> pure $ Left msg
+                     Right path -> pure $ Right path
 
-  hPutStrLn stderr $ "LOG: Using config file: " ++ toFilePath (fromJust confFilePath)
-  confFile <- parseConfigFile (fromJust confFilePath) defaultConfig
+  vConfFilePath <- case confFilePath of
+                     Right p -> pure p
+                     Left msg -> do die msg
+
+  hPutStrLn stderr $ "LOG: Using config file: " ++ toFilePath vConfFilePath
+  confFile <- parseConfigFile vConfFilePath defaultConfig
 
   let conf = defaultConfig
         { username         = confArgs.username         <|> confEnv.username         <|> confFile.username
@@ -69,7 +73,7 @@ main = do
         , clientId         = confArgs.clientId         <|> confEnv.clientId         <|> confFile.clientId
         , clientSecretFile = confArgs.clientSecretFile <|> confEnv.clientSecretFile <|> confFile.clientSecretFile
         , twoFA            = confArgs.twoFA            <|> confEnv.twoFA            <|> confFile.twoFA
-        , configFile       = confFilePath
+        , configFile       = Nothing
         }
 
   print conf
@@ -86,7 +90,8 @@ main = do
   -- tests
   print vUsername
   print vPass
-  print $ toFilePath $ fromJust conf.clientSecretFile
+  print vClientId
+  print vClientSecret
   where
     fromConfOrDie c errMsg = case c of
                Just a -> pure a
@@ -187,10 +192,11 @@ parseConfigFile file conf = do
     kvToConfDo k v c'' = case k of
       "username"    -> pure c'' {username = v}
       "secret_file" -> case v of
-                         Just v' -> do
-                                  path <- parseFilePath (T.pack v')
-                                  pure c'' {clientSecretFile = Just path}
-                         Nothing -> pure c'' {clientSecretFile = Nothing}
+                         Just v' | not (null v') -> do
+                                     traceShow ("value of v' 1: ", v') pure ()
+                                     path <- parseFilePath (T.pack v')
+                                     pure c'' {clientSecretFile = Just path}
+                         _ -> traceShow ("value of v' 2: ", v, "So defaulting to Nothing!") pure c'' {clientSecretFile = Nothing}
       _             -> pure c''
 
 isConfigKey :: String -> Bool
@@ -211,9 +217,6 @@ dropInlineComment l = go l []
     go (' ':'#':_) beforeC = beforeC
     go (x:xs) beforeC = go xs (beforeC <> [x])
     go _ beforeC = beforeC
-
-doesFileExistOrDie :: Path b File -> String -> IO ()
-doesFileExistOrDie f msg = doesFileExist f >>= \r -> unless r $ die msg
 
 lookupEnvFilePath :: String -> IO (Maybe (Path Abs File))
 lookupEnvFilePath env = lookupEnv env >>= \case
