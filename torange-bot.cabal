@@ -23,6 +23,8 @@ executable torange-bot
                     , text ^>= 2.1.2
                     , path-extra ^>= 0.1
                     , path-io ^>= 1.8.2
+                    , yocto ^>= 1.0.1
+                    , containers >= 0.6.7
 
     default-language: GHC2021
     ghc-options: -Wall

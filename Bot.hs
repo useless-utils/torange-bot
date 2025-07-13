@@ -7,6 +7,7 @@ import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Types.Header (hUserAgent)
 import Data.ByteString.Char8 qualified as C
+import Data.ByteString.Lazy.Char8 qualified as CL
 
 import System.Environment
 import System.Exit
@@ -18,6 +19,9 @@ import System.IO
 import Path.Parse
 import Path.IO
 import Data.Text qualified as T
+
+import Text.JSON.Yocto
+import Data.Map qualified as M
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -96,13 +100,12 @@ main = do
                , ( "password", C.pack vPass )
                ]
       accessTokenReq = urlEncodedBody params req'
-  print req'
-  print accessTokenReq
-
   manager <- newManager tlsManagerSettings
   response <- httpLbs accessTokenReq manager
+  let rBody = responseBody response
+      decBody = decode $ CL.unpack rBody
 
-  print response
+  print decBody
 
   where
     fromConfOrDie :: Maybe String -> String -> IO String
