@@ -90,8 +90,14 @@ main = do
          <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
   let ua = "torange-bot/0.1 by /u/UnclearVoyant"
       req' = req { requestHeaders = (hUserAgent, C.pack ua) : req.requestHeaders }
-
+      params :: [(C.ByteString, C.ByteString)]
+      params = [ ( "grant_type", "password" )
+               , ( "username", C.pack vUsername )
+               , ( "password", C.pack vPass )
+               ]
+      accessTokenReq = urlEncodedBody params req'
   print req'
+  print accessTokenReq
 
   where
     fromConfOrDie :: Maybe String -> String -> IO String
