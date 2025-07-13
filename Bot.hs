@@ -99,6 +99,11 @@ main = do
   print req'
   print accessTokenReq
 
+  manager <- newManager tlsManagerSettings
+  response <- httpLbs accessTokenReq manager
+
+  print response
+
   where
     fromConfOrDie :: Maybe String -> String -> IO String
     fromConfOrDie c errMsg = case c of
