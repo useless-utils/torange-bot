@@ -5,6 +5,7 @@
 
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
+import Network.HTTP.Types.Header (hUserAgent)
 import Data.ByteString.Char8 qualified as C
 
 import System.Environment
@@ -84,8 +85,13 @@ main = do
 
   -- tests
   print conf
-  print vUsername
-  print vClientId
+
+  req <- applyBasicAuth (C.pack vClientId) (C.pack vClientSecret)
+         <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
+  let ua = "torange-bot/0.1 by /u/UnclearVoyant"
+      req' = req { requestHeaders = (hUserAgent, C.pack ua) : req.requestHeaders }
+
+  print req'
 
   where
     fromConfOrDie :: Maybe String -> String -> IO String
