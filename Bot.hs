@@ -59,7 +59,7 @@ main = do
                      Nothing -> pure $ Left "Couldn't get config file from args."
       (_, True) -> case confEnv.configFile of
                      Just path -> pure $ Right path
-                     Nothing -> pure $ Left "Couldn't get config file from args."
+                     Nothing -> pure $ Left "Couldn't get config file from env. var."
       _         -> case defConfFile of
                      Left msg -> pure $ Left msg
                      Right path -> pure $ Right path
