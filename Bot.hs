@@ -6,6 +6,7 @@
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Types.Header (hUserAgent)
+import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy.Char8 qualified as CL
 
@@ -20,6 +21,7 @@ import System.IO
 import Path.Parse
 import Path.IO
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as TE
 
 import Text.JSON.Yocto
 import Data.Map qualified as M
@@ -91,11 +93,11 @@ main = do
 
   print conf  -- debug
 
+  let userAgent = "torange-bot/0.1 by /u/torange-bot"
   -- get token
   req <- applyBasicAuth (C.pack vClientId) (C.pack vClientSecret)
          <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
-  let ua = "torange-bot/0.1 by /u/torange-bot"
-      req' = req { requestHeaders = (hUserAgent, C.pack ua) : req.requestHeaders }
+  let req' = req { requestHeaders = (hUserAgent, C.pack userAgent) : req.requestHeaders }
       params :: [(C.ByteString, C.ByteString)]
       params = [ ( "grant_type", "password" )
                , ( "username", C.pack vUsername )
@@ -121,20 +123,22 @@ main = do
                    Nothing -> die "ERROR: couldn't get token from response."
 
   reqSubmit <- applyBearerAuth accessToken <$> parseRequest "POST https://oauth.reddit.com/api/submit"
-  let reqSubmit' = reqSubmit { requestHeaders = (hUserAgent, C.pack ua) : reqSubmit.requestHeaders }
+  postTextFromFile <- readFile $ toFilePath [relfile|body|]
+  postTitleFromFile <- readFile $ toFilePath [relfile|title|]
+  let reqSubmit' = reqSubmit { requestHeaders = (hUserAgent, C.pack userAgent) : reqSubmit.requestHeaders }
       reqSubmitData = [ ("api_type", "json")
-                      , ("kind", "link")
-                      , ("sr", postSubreddit)
-                      , ("title", postTitle)
-                      , ("url", postUrl)
-                      -- , ("flair_id", postFlairId)
-                      , ("text", postText)
+                      , ("kind",     "link")
+                      , ("sr",       toUtf8 postSubreddit)
+                      , ("title",    toUtf8 postTitle)
+                      , ("url",      toUtf8 postUrl)
+                      -- , ("flair_id", toUtf8 postFlairId)
+                      , ("text",     toUtf8 postText)
                       ]
       reqSubmitDataEncoded = urlEncodedBody reqSubmitData reqSubmit'
       postSubreddit = "LearnToReddit"
-      postTitle = "Testing my little app"
-      postUrl = "https://en.wikipedia.org/wiki/Arete_of_Cyrene"
-      postText = "Testing my little link-posting app. 🤖"
+      postTitle = postTitleFromFile
+      postUrl = "https://example.com/🌐💻"
+      postText = postTextFromFile
 
   responseSubmit <- httpLbs reqSubmitDataEncoded manager
   print responseSubmit -- debug
@@ -157,6 +161,9 @@ main = do
         Nothing -> if null contents
                    then die errMsg
                    else pure contents
+
+toUtf8 :: String -> ByteString
+toUtf8 = TE.encodeUtf8 . T.pack
 
 getAccessToken :: Value -> Maybe String
 getAccessToken (Object o) =
