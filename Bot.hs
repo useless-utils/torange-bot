@@ -23,6 +23,7 @@ import Data.Text qualified as T
 
 import Text.JSON.Yocto
 import Data.Map qualified as M
+import Text.Printf
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -90,9 +91,10 @@ main = do
 
   print conf  -- debug
 
+  -- get token
   req <- applyBasicAuth (C.pack vClientId) (C.pack vClientSecret)
          <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
-  let ua = "torange-bot/0.1 by /u/UnclearVoyant"
+  let ua = "torange-bot/0.1 by /u/torange-bot"
       req' = req { requestHeaders = (hUserAgent, C.pack ua) : req.requestHeaders }
       params :: [(C.ByteString, C.ByteString)]
       params = [ ( "grant_type", "password" )
@@ -115,10 +117,28 @@ main = do
                      unless
                        (validateAccessToken token)
                        (die "ERROR: invalid token.")
-                     pure token
+                     pure $ C.pack token
                    Nothing -> die "ERROR: couldn't get token from response."
 
-  
+  reqSubmit <- applyBearerAuth accessToken <$> parseRequest "POST https://oauth.reddit.com/api/submit"
+  let reqSubmit' = reqSubmit { requestHeaders = (hUserAgent, C.pack ua) : reqSubmit.requestHeaders }
+      reqSubmitData = [ ("api_type", "json")
+                      , ("kind", "link")
+                      , ("sr", postSubreddit)
+                      , ("title", postTitle)
+                      , ("url", postUrl)
+                      -- , ("flair_id", postFlairId)
+                      , ("text", postText)
+                      ]
+      reqSubmitDataEncoded = urlEncodedBody reqSubmitData reqSubmit'
+      postSubreddit = "LearnToReddit"
+      postTitle = "Testing my little app"
+      postUrl = "https://en.wikipedia.org/wiki/Arete_of_Cyrene"
+      postText = "Testing my little link-posting app. 🤖"
+
+  responseSubmit <- httpLbs reqSubmitDataEncoded manager
+  print responseSubmit -- debug
+  putStrLn $ CL.unpack $ responseBody responseSubmit
 
   where
     fromConfOrDie :: Maybe String -> String -> IO String
