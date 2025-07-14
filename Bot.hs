@@ -12,6 +12,7 @@ import Data.ByteString.Lazy.Char8 qualified as CL
 import System.Environment
 import System.Exit
 import Data.Maybe
+import Control.Monad
 import Control.Applicative
 import Data.Char
 import Data.List
@@ -87,8 +88,7 @@ main = do
   vClientSecret <- fromFileOrEnvOrDie conf.clientSecretFile clientSecretEnv "ERROR: Client secret not provided."
   let vPass = vPassword ++ maybe [] (":" ++) conf.twoFA
 
-  -- tests
-  print conf
+  print conf  -- debug
 
   req <- applyBasicAuth (C.pack vClientId) (C.pack vClientSecret)
          <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
@@ -105,7 +105,20 @@ main = do
   let rBody = responseBody response
       decBody = decode $ CL.unpack rBody
 
-  print decBody
+  case responseError decBody of
+    Just s -> do hPrintf stderr "ERROR: \"%s\", try again.\n" s
+                 exitFailure
+    Nothing -> pure ()
+
+  accessToken <- case getAccessToken decBody of
+                   Just token -> do
+                     unless
+                       (validateAccessToken token)
+                       (die "ERROR: invalid token.")
+                     pure token
+                   Nothing -> die "ERROR: couldn't get token from response."
+
+  
 
   where
     fromConfOrDie :: Maybe String -> String -> IO String
@@ -124,6 +137,32 @@ main = do
         Nothing -> if null contents
                    then die errMsg
                    else pure contents
+
+getAccessToken :: Value -> Maybe String
+getAccessToken (Object o) =
+  case M.lookup "access_token" o of
+    Just (String token) -> Just token
+    _ -> Nothing
+getAccessToken _ = Nothing
+
+responseError :: Value -> Maybe String
+responseError (Object o) =
+  case M.lookup "error" o of
+    Just v -> case v of
+                String s -> Just s
+                _notStr  -> Nothing
+    Nothing -> Nothing
+responseError _ = Nothing
+
+-- TODO Maybe also check for unusually max length?
+validateAccessToken :: String -> Bool
+validateAccessToken tok =
+  not (null tok)
+  && length tok > 50
+  && all isValidChar tok
+  where
+    isValidChar c = isAlphaNum c || c `elem` ("-_." :: String)
+
 
 parseArgs :: [String] -> Config -> IO Config
 parseArgs args conf =
