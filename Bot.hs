@@ -20,12 +20,15 @@ import Data.List
 import System.IO
 import Path.Parse
 import Path.IO
+import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
+import Data.Text.IO qualified as T
 
 import Text.JSON.Yocto
 import Data.Map qualified as M
 import Text.Printf
+import Data.Bifunctor
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -137,7 +140,7 @@ main = do
       reqSubmitDataEncoded = urlEncodedBody reqSubmitData reqSubmit'
       postSubreddit = "LearnToReddit"
       postTitle = postTitleFromFile
-      postUrl = "https://example.com/🌐💻"
+      postUrl = ""
       postText = postTextFromFile
 
   responseSubmit <- httpLbs reqSubmitDataEncoded manager
@@ -252,7 +255,6 @@ getDefConfigFile = do
     then pure $ Right file
     else pure $ Left $ "Default config file \"" ++ toFilePath file ++ "\" doesn't exist."
 
--- TODO Account for empty value e.g. key= # comment
 parseConfigFile :: Path Abs File -> Config -> IO Config
 parseConfigFile file conf = do
   confFileLines <- lines <$> readFile (toFilePath file)
@@ -308,3 +310,55 @@ lookupEnvFilePath env = lookupEnv env >>= \case
   Just p -> Just <$> parseFilePath (T.pack p)
   Nothing -> pure Nothing
 
+-- post file
+data Post = Link
+  { title     :: Maybe ByteString
+  , url       :: Maybe ByteString
+  , subreddit :: Maybe ByteString
+  , body      :: Maybe ByteString
+  , flairId   :: Maybe ByteString
+  } deriving (Eq, Show)
+
+postDef :: Post
+postDef       = Link
+  { title     = Nothing
+  , url       = Nothing
+  , subreddit = Nothing
+  , body      = Nothing
+  , flairId   = Nothing
+  }
+
+parsePostFile :: Path Abs File -> Post -> IO Post
+parsePostFile file post = do
+  contents <- T.readFile (toFilePath file)
+  let (postArgs, body) = T.breakOn "\n\n" contents
+      tokenizePostArgs = map tokenizeHeaderLine $ T.lines postArgs
+      bodyEnc = TE.encodeUtf8 $ T.strip body
+      postArgs' = parsePostArgs tokenizePostArgs post
+
+  pure postArgs' { title = postArgs'.title
+                 , url = postArgs'.url
+                 , subreddit = postArgs'.subreddit
+                 , flairId = postArgs'.flairId
+                 , body = Just bodyEnc
+                 }
+    where
+      breakOnEq = T.breakOn "="
+      stripVal = T.dropWhile (== '=') . T.strip
+      tokenizeHeaderLine = bimap T.strip stripVal . breakOnEq
+      isPostKey k = any (k `T.isPrefixOf`) postHeaderKeys
+      postHeaderKeys =
+        [ "title", "url", "link", "sr", "subreddit", "flair_id", "flairId" ]
+      parsePostArgs :: [(Text, Text)] -> Post -> Post
+      parsePostArgs [] p = p
+      parsePostArgs (x:xs) p =
+        if isPostKey $ fst x
+        then case fst x of
+          "title"                          -> parsePostArgs xs p {title     = jSET x}
+          k | k `elem` ["url", "link"]     -> parsePostArgs xs p {url       = jSET x}
+          k | k `elem` ["subreddit", "sr"] -> parsePostArgs xs p {subreddit = jSET x}
+          "flair_id"                       -> parsePostArgs xs p {flairId   = jSET x}
+          _ -> parsePostArgs xs p
+          -- TODO maybe implement body= as the start of body?
+        else parsePostArgs xs p
+      jSET = Just . TE.encodeUtf8 . snd
