@@ -65,17 +65,17 @@ main = do
         isArg = isJust confArgs.configFile
     case (isArg, isEnv) of
       (True, _) -> case confArgs.configFile of
-                     Just path -> pure $ Right path
-                     Nothing -> pure $ Left "Couldn't get config file from args."
+                     Just path  -> pure $ Right path
+                     Nothing    -> pure $ Left "Couldn't get config file from args."
       (_, True) -> case confEnv.configFile of
-                     Just path -> pure $ Right path
-                     Nothing -> pure $ Left "Couldn't get config file from env. var."
-      _         -> case defConfFile of
-                     Left msg -> pure $ Left msg
+                     Just path  -> pure $ Right path
+                     Nothing    -> pure $ Left "Couldn't get config file from env. var."
+      _ -> case defConfFile of
+                     Left msg   -> pure $ Left msg
                      Right path -> pure $ Right path
   vConfFilePath <- case confFilePath of
-                     Right p -> pure p
-                     Left msg -> do die msg
+                     Right p    -> pure p
+                     Left msg   -> do die msg
 
   confFile <- parseConfigFile vConfFilePath defaultConfig
 
