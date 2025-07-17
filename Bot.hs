@@ -355,7 +355,7 @@ parsePostFile file post = do
     else pure $ Left p
     where
       breakOnEq = T.breakOn "="
-      stripVal = T.dropWhile (== '=') . T.strip
+      stripVal = T.strip . T.dropWhile (== '=')
       tokenizeHeaderLine = bimap T.strip stripVal . breakOnEq
       isPostKey k = any (k `T.isPrefixOf`) postHeaderKeys
       postHeaderKeys =
