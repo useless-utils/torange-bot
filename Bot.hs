@@ -29,6 +29,7 @@ import Text.JSON.Yocto
 import Data.Map qualified as M
 import Text.Printf
 import Data.Bifunctor
+import Data.Either
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -38,6 +39,7 @@ defaultConfig = Config
   , clientSecretFile = Nothing
   , twoFA            = Nothing
   , configFile       = Nothing
+  , postFile         = Nothing
   }
 
 data Config = Config
@@ -47,6 +49,7 @@ data Config = Config
   , clientSecretFile :: Maybe (Path Abs File)  -- NO secret via cli.
   , twoFA            :: Maybe String
   , configFile       :: Maybe (Path Abs File)
+  , postFile         :: Maybe (Path Abs File)
   } deriving (Show, Eq)
 
 main :: IO ()
@@ -82,8 +85,16 @@ main = do
         , clientId         = confArgs.clientId         <|> confEnv.clientId         <|> confFile.clientId
         , clientSecretFile = confArgs.clientSecretFile <|> confEnv.clientSecretFile <|> confFile.clientSecretFile
         , twoFA            = confArgs.twoFA            <|> confEnv.twoFA            <|> confFile.twoFA
+        , postFile         = confArgs.postFile         <|> confEnv.postFile
         , configFile       = Nothing
         }
+
+  -- TODO check for existance and permissions
+  when (isNothing conf.postFile) (die "ERROR: Post file not provided.")
+
+  postData <- parsePostFile (fromJust conf.postFile) postDef
+  when (isLeft postData) $ die "ERROR: Wrong post input data."
+  let post = fromRight postDef postData
 
   passwordEnv     <- lookupEnv "TORANGE_BOT_REDDIT_PASSWORD"
   clientSecretEnv <- lookupEnv "TORANGE_BOT_REDDIT_CLIENT_SECRET"
@@ -96,8 +107,8 @@ main = do
 
   print conf  -- debug
 
-  let userAgent = "torange-bot/0.1 by /u/torange-bot"
   -- get token
+  let userAgent = "torange-bot/0.1 by /u/torange-bot"
   req <- applyBasicAuth (C.pack vClientId) (C.pack vClientSecret)
          <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
   let req' = req { requestHeaders = (hUserAgent, C.pack userAgent) : req.requestHeaders }
@@ -126,22 +137,13 @@ main = do
                    Nothing -> die "ERROR: couldn't get token from response."
 
   reqSubmit <- applyBearerAuth accessToken <$> parseRequest "POST https://oauth.reddit.com/api/submit"
-  postTextFromFile <- readFile $ toFilePath [relfile|body|]
-  postTitleFromFile <- readFile $ toFilePath [relfile|title|]
+
   let reqSubmit' = reqSubmit { requestHeaders = (hUserAgent, C.pack userAgent) : reqSubmit.requestHeaders }
-      reqSubmitData = [ ("api_type", "json")
-                      , ("kind",     "link")
-                      , ("sr",       toUtf8 postSubreddit)
-                      , ("title",    toUtf8 postTitle)
-                      , ("url",      toUtf8 postUrl)
-                      -- , ("flair_id", toUtf8 postFlairId)
-                      , ("text",     toUtf8 postText)
-                      ]
+      reqSubmitData = catMaybes $
+        [ Just ("api_type", "json")
+        , Just ("kind",     "link")
+        ] <> postParams post
       reqSubmitDataEncoded = urlEncodedBody reqSubmitData reqSubmit'
-      postSubreddit = "LearnToReddit"
-      postTitle = postTitleFromFile
-      postUrl = ""
-      postText = postTextFromFile
 
   responseSubmit <- httpLbs reqSubmitDataEncoded manager
   print responseSubmit -- debug
@@ -200,13 +202,15 @@ parseArgs args conf =
     ("--":_)                      -> pure conf
     ("-u":a:xs)                   -> parseArgs xs conf {username = Just a}
     ("--username":a:xs)           -> parseArgs xs conf {username = Just a}
-    ("-p":a:xs)                   -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {passwordFile = Just x}
+    ("-P":a:xs)                   -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {passwordFile = Just x}
     ("--password-file":a:xs)      -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {passwordFile = Just x}
     ("--client-id":a:xs)          -> parseArgs xs conf {clientId = Just a}
     ("--client-secret-file":a:xs) -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {clientSecretFile = Just x}
     ("--2fa":a:xs)                -> parseArgs xs conf {twoFA = Just a}
     ("-c":a:xs)                   -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {configFile = Just x}
     ("--config-file":a:xs)        -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {configFile = Just x}
+    ("-p":a:xs)                   -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {postFile = Just x}
+    ("--post-file":a:xs)          -> parseFilePath (T.pack a) >>= parseArgs xs . \x -> conf {postFile = Just x}
     (_:xs)                        -> parseArgs xs conf
     []                            -> pure conf
 
@@ -218,6 +222,7 @@ parseEnv conf = do
   clientSecretFileEnv <- lookupEnvFilePath "TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE"
   twoFAEnv            <- lookupEnv         "TORANGE_BOT_REDDIT_2FA"
   configFileEnv       <- lookupEnvFilePath "TORANGE_BOT_CONFIG_FILE"
+  postFileEnv         <- lookupEnvFilePath "TORANGE_BOT_POST_FILE"
 
   pure conf
     { username         = usernameEnv
@@ -226,6 +231,7 @@ parseEnv conf = do
     , clientSecretFile = clientSecretFileEnv
     , twoFA            = twoFAEnv
     , configFile       = configFileEnv
+    , postFile         = postFileEnv
     }
 
 doesSecretHave2FA :: Maybe String -> Bool
@@ -328,20 +334,25 @@ postDef       = Link
   , flairId   = Nothing
   }
 
-parsePostFile :: Path Abs File -> Post -> IO Post
+parsePostFile :: Path Abs File -> Post -> IO (Either Post Post)
 parsePostFile file post = do
   contents <- T.readFile (toFilePath file)
   let (postArgs, body) = T.breakOn "\n\n" contents
       tokenizePostArgs = map tokenizeHeaderLine $ T.lines postArgs
       bodyEnc = TE.encodeUtf8 $ T.strip body
-      postArgs' = parsePostArgs tokenizePostArgs post
+      post' = parsePostArgs tokenizePostArgs post
+      p = post' { title     = post'.title
+                , url       = post'.url
+                , subreddit = post'.subreddit
+                , flairId   = post'.flairId
+                , body      = if C.null bodyEnc
+                              then Nothing
+                              else Just bodyEnc
+                }
 
-  pure postArgs' { title = postArgs'.title
-                 , url = postArgs'.url
-                 , subreddit = postArgs'.subreddit
-                 , flairId = postArgs'.flairId
-                 , body = Just bodyEnc
-                 }
+  if all isJust [p.title, p.url, p.subreddit]
+    then pure $ Right p
+    else pure $ Left p
     where
       breakOnEq = T.breakOn "="
       stripVal = T.dropWhile (== '=') . T.strip
@@ -362,3 +373,22 @@ parsePostFile file post = do
           -- TODO maybe implement body= as the start of body?
         else parsePostArgs xs p
       jSET = Just . TE.encodeUtf8 . snd
+
+postParams :: Post -> [Maybe (ByteString, ByteString)]
+postParams post =
+  [ mayParam "title"    post.title
+  , mayParam "url"      post.url
+  , mayParam "sr"       post.subreddit
+  , mayParam "text"     post.body
+  , mayParam "flair_id" post.flairId
+  ]
+  where
+    mayParam :: ByteString -> Maybe ByteString -> Maybe (ByteString, ByteString)
+    mayParam "title"    (Just x) = Just ("title"    , x)
+    mayParam "url"      (Just x) = Just ("url"      , x)
+    mayParam "sr"       (Just x) = Just ("sr"       , x)
+    mayParam "text"     (Just x) = Just ("text"     , x)
+    mayParam "flair_id" (Just x) = Just ("flair_id" , x)
+    mayParam _ (Just "") = Nothing
+    mayParam _ (Just _)  = Nothing
+    mayParam _ Nothing   = Nothing
