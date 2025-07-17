@@ -372,7 +372,8 @@ parsePostFile file post = do
           _ -> parsePostArgs xs p
           -- TODO maybe implement body= as the start of body?
         else parsePostArgs xs p
-      jSET = Just . TE.encodeUtf8 . snd
+      jSET v | T.null $ snd v = Nothing
+             | otherwise      = (Just . TE.encodeUtf8 . snd) v
 
 postParams :: Post -> [Maybe (ByteString, ByteString)]
 postParams post =
