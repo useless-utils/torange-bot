@@ -110,13 +110,13 @@ main = do
 
   -- get token
   let userAgent = "torange-bot/0.1 by /u/torange-bot"
-  req <- applyBasicAuth (C.pack vClientId) (C.pack vClientSecret)
+  req <- applyBasicAuth (toUtf8 vClientId) (toUtf8 vClientSecret)
          <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
-  let req' = req { requestHeaders = (hUserAgent, C.pack userAgent) : req.requestHeaders }
+  let req' = req { requestHeaders = (hUserAgent, toUtf8 userAgent) : req.requestHeaders }
       params :: [(C.ByteString, C.ByteString)]
       params = [ ( "grant_type", "password" )
-               , ( "username", C.pack vUsername )
-               , ( "password", C.pack vPass )
+               , ( "username", toUtf8 vUsername )
+               , ( "password", toUtf8 vPass )
                ]
       accessTokenReq = urlEncodedBody params req'
   manager <- newManager tlsManagerSettings
@@ -134,12 +134,12 @@ main = do
                      unless
                        (validateAccessToken token)
                        (die "ERROR: invalid token.")
-                     pure $ C.pack token
+                     pure $ toUtf8 token
                    Nothing -> die "ERROR: couldn't get token from response."
 
   reqSubmit <- applyBearerAuth accessToken <$> parseRequest "POST https://oauth.reddit.com/api/submit"
 
-  let reqSubmit' = reqSubmit { requestHeaders = (hUserAgent, C.pack userAgent) : reqSubmit.requestHeaders }
+  let reqSubmit' = reqSubmit { requestHeaders = (hUserAgent, toUtf8 userAgent) : reqSubmit.requestHeaders }
       reqSubmitData = catMaybes $
         [ Just ("api_type", "json")
         , Just ("kind",     "link")
