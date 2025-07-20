@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase, QuasiQuotes #-}
 {-# LANGUAGE OverloadedRecordDot, NoFieldSelectors #-}
+{-# LANGUAGE StrictData #-}
 
 
 import Network.HTTP.Client
