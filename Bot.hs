@@ -12,18 +12,18 @@ import Data.ByteString.Lazy.Char8 qualified as CL
 
 import System.Environment
 import System.Exit
+import Data.Char
+import Data.List
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
-import Data.Char
-import Data.List
 import System.IO
 import Path.Parse
 import Path.IO
 import Data.Text (Text)
-import Data.Text qualified as T
+import Data.Text          qualified as T
+import Data.Text.IO       qualified as T
 import Data.Text.Encoding qualified as TE
-import Data.Text.IO qualified as T
 
 import Text.JSON.Yocto
 import Data.Map qualified as M
@@ -70,9 +70,9 @@ main = do
       (_, True) -> case confEnv.configFile of
                      Just path  -> pure $ Right path
                      Nothing    -> pure $ Left "Couldn't get config file from env. var."
-      _ -> case defConfFile of
-                     Left msg   -> pure $ Left msg
-                     Right path -> pure $ Right path
+      _defToConfFile -> case defConfFile of
+        Left msg   -> pure $ Left msg
+        Right path -> pure $ Right path
   vConfFilePath <- case confFilePath of
                      Right p    -> pure p
                      Left msg   -> do die msg
