@@ -32,6 +32,10 @@ import Text.Printf
 import Data.Bifunctor
 import Data.Either
 
+import Data.Time.Clock
+import Data.Time.Format
+import Text.Read ( readMaybe )
+
 defaultConfig :: Config
 defaultConfig = Config
   { username         = Nothing
@@ -117,6 +121,7 @@ main = do
                    ensureDir appDir
                    hPutStrLn stderr $ toFilePath appDir
                    pure appDir
+  let accessFile = appDir </> [relfile|access|]
 
   -- get token
   let userAgent = "torange-bot/0.1 by /u/torange-bot"
@@ -133,22 +138,26 @@ main = do
   response <- httpLbs accessTokenReq manager
 
   let rBody = responseBody response
-      decBody = Y.decode $ CL.unpack rBody
+      rBodyDec = Y.decode $ CL.unpack rBody
+  rBodyDecT <- insertTimestamp rBodyDec >>= \case
+    Right b -> pure b
+    Left b -> do hPutStrLn stderr "WARNING: Couldn't add timestamp to access_token!"
+                 pure b
 
-  case responseError decBody of
+  case responseError rBodyDecT of
     Just s -> do hPrintf stderr "ERROR: \"%s\", try again.\n" s
                  exitFailure
     Nothing -> pure ()
 
-  accessToken <- case getAccessToken decBody of
+  C.writeFile (toFilePath accessFile) (toUtf8 $ Y.encode rBodyDecT)
+
+  accessToken <- case getAccessToken rBodyDecT of
                    Just token -> do
                      unless
                        (validateAccessToken token)
                        (die "ERROR: invalid token.")
                      pure $ toUtf8 token
                    Nothing -> die "ERROR: couldn't get token from response."
-
-  C.writeFile (toFilePath $ appDir </> [relfile|access_token|]) accessToken
 
   reqSubmit <- applyBearerAuth accessToken <$> parseRequest "POST https://oauth.reddit.com/api/submit"
 
@@ -199,6 +208,12 @@ responseError (Y.Object o) =
                 _notStr  -> Nothing
     Nothing -> Nothing
 responseError _ = Nothing
+
+insertTimestamp :: Y.Value -> IO (Either Y.Value Y.Value)
+insertTimestamp (Y.Object a) = do
+  t <- getCurrentTime
+  pure $ Right $ Y.Object $ M.insert "saved_at" (Y.String $ show t) a
+insertTimestamp a = pure $ Left a
 
 -- TODO Maybe also check for unusually max length?
 validateAccessToken :: String -> Bool
