@@ -26,7 +26,7 @@ import Data.Text          qualified as T
 import Data.Text.IO       qualified as T
 import Data.Text.Encoding qualified as TE
 
-import Text.JSON.Yocto
+import Text.JSON.Yocto qualified as Y
 import Data.Map qualified as M
 import Text.Printf
 import Data.Bifunctor
@@ -131,8 +131,9 @@ main = do
       accessTokenReq = urlEncodedBody params req'
   manager <- newManager tlsManagerSettings
   response <- httpLbs accessTokenReq manager
+
   let rBody = responseBody response
-      decBody = decode $ CL.unpack rBody
+      decBody = Y.decode $ CL.unpack rBody
 
   case responseError decBody of
     Just s -> do hPrintf stderr "ERROR: \"%s\", try again.\n" s
@@ -183,18 +184,18 @@ main = do
 toUtf8 :: String -> ByteString
 toUtf8 = TE.encodeUtf8 . T.pack
 
-getAccessToken :: Value -> Maybe String
-getAccessToken (Object o) =
+getAccessToken :: Y.Value -> Maybe String
+getAccessToken (Y.Object o) =
   case M.lookup "access_token" o of
-    Just (String token) -> Just token
+    Just (Y.String token) -> Just token
     _ -> Nothing
 getAccessToken _ = Nothing
 
-responseError :: Value -> Maybe String
-responseError (Object o) =
+responseError :: Y.Value -> Maybe String
+responseError (Y.Object o) =
   case M.lookup "error" o of
     Just v -> case v of
-                String s -> Just s
+                Y.String s -> Just s
                 _notStr  -> Nothing
     Nothing -> Nothing
 responseError _ = Nothing
