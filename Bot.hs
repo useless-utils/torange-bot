@@ -108,6 +108,16 @@ main = do
 
   print conf  -- debug
 
+  xdgAppDirEither <- createStateDir
+  appDir <- case xdgAppDirEither of
+                 Right p -> pure p
+                 Left msg -> do
+                   hPutStr stderr (msg <> " Defaulting to app dir: ")
+                   appDir <- getAppUserDataDir "torange-bot"
+                   ensureDir appDir
+                   hPutStrLn stderr $ toFilePath appDir
+                   pure appDir
+
   -- get token
   let userAgent = "torange-bot/0.1 by /u/torange-bot"
   req <- applyBasicAuth (toUtf8 vClientId) (toUtf8 vClientSecret)
@@ -136,6 +146,8 @@ main = do
                        (die "ERROR: invalid token.")
                      pure $ toUtf8 token
                    Nothing -> die "ERROR: couldn't get token from response."
+
+  C.writeFile (toFilePath $ appDir </> [relfile|access_token|]) accessToken
 
   reqSubmit <- applyBearerAuth accessToken <$> parseRequest "POST https://oauth.reddit.com/api/submit"
 
@@ -254,6 +266,33 @@ getConfigDir = do
   then getXdgConfigDir
   else getCurrentDir
 
+data IsXdgState p t = Exist p  -- ^ Existing path
+                    | MissingTarget t  -- ^ The app dir inside 'XdgState'
+                    | MissingBase  -- ^ 'XdgState' dir itself
+
+getXdgStateDir :: IO (Path Abs Dir)
+getXdgStateDir = getXdgDir XdgState $ Just [reldir|torange-bot|]
+
+isXdgStateDir :: IO (IsXdgState (Path Abs Dir) (Path Abs Dir))
+isXdgStateDir = do
+  xdg <- getXdgStateDir
+  isXdg <- doesDirExist xdg
+  isBaseXdgState <- doesDirExist =<< getXdgDir XdgState Nothing
+  if isBaseXdgState
+    then if isXdg
+         then pure $ Exist xdg
+         else pure $ MissingTarget xdg
+    else pure MissingBase
+
+createStateDir :: IO (Either String (Path Abs Dir))
+createStateDir = do
+  xdg <- isXdgStateDir
+  case xdg of
+    Exist p -> do pure $ Right p
+    MissingTarget t -> do ensureDir t
+                          Right <$> getXdgStateDir
+    MissingBase -> pure $ Left "Base XdgState directory not found."
+
 getDefConfigFile :: IO (Either String (Path Abs File))
 getDefConfigFile = do
   file <- makeAbsolute [relfile|torange-bot.conf|]
@@ -371,7 +410,6 @@ parsePostFile file post = do
           k | k `elem` ["subreddit", "sr"] -> parsePostArgs xs p {subreddit = jSET x}
           "flair_id"                       -> parsePostArgs xs p {flairId   = jSET x}
           _ -> parsePostArgs xs p
-          -- TODO maybe implement body= as the start of body?
         else parsePostArgs xs p
       jSET v | T.null $ snd v = Nothing
              | otherwise      = (Just . TE.encodeUtf8 . snd) v
