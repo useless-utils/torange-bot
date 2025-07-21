@@ -14,7 +14,7 @@ import Data.ByteString.Lazy.Char8 qualified as CL
 import System.Environment
 import System.Exit
 import Data.Char
-import Data.List
+import Data.List ( dropWhileEnd, isInfixOf )
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
@@ -310,6 +310,7 @@ parseConfigFile file conf = do
     parseLines line = case lineTokenise line [] [] of
       ([], []) -> Nothing
       (k,v) -> Just (k, Just v)
+    lineTokenise :: String -> String -> String -> (String, String)
     lineTokenise (x:xs) key val
       | isSpace x = lineTokenise xs key val
       | x == '=' = (key, dropTrailingSpaces $ dropInlineComment $ dropLeadingSpaces xs)
@@ -327,6 +328,7 @@ parseConfigFile file conf = do
       "client_id"          -> pure c {clientId = v}
       "client_secret_file" -> vCheckParsePath (\p c' -> c' {clientSecretFile = p}) v c
       _                    -> pure c
+    vCheckParsePath :: (Maybe (Path Abs File) -> Config -> Config) -> Maybe String -> Config -> IO Config
     vCheckParsePath setter v c = do
       p <- traverse (parseFilePath . T.pack) v
       pure $ setter p c
@@ -412,6 +414,7 @@ parsePostFile file post = do
           "flair_id"                       -> parsePostArgs xs p {flairId   = jSET x}
           _ -> parsePostArgs xs p
         else parsePostArgs xs p
+      jSET :: (Text, Text) -> Maybe ByteString
       jSET v | T.null $ snd v = Nothing
              | otherwise      = (Just . TE.encodeUtf8 . snd) v
 
