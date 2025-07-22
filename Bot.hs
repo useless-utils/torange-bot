@@ -110,8 +110,6 @@ main = do
   vClientSecret <- fromFileOrEnvOrDie conf.clientSecretFile clientSecretEnv "ERROR: Client secret not provided."
   let vPass = vPassword ++ maybe [] (":" ++) conf.twoFA
 
-  print conf  -- debug
-
   xdgAppDirEither <- createStateDir
   appDir <- case xdgAppDirEither of
                  Right p -> pure p
@@ -190,9 +188,12 @@ main = do
                    then die errMsg
                    else pure contents
 
+-- encoding
 toUtf8 :: String -> ByteString
 toUtf8 = TE.encodeUtf8 . T.pack
 
+
+-- access file
 getAccessToken :: Y.Value -> Maybe String
 getAccessToken (Y.Object o) =
   case M.lookup "access_token" o of
@@ -225,6 +226,7 @@ validateAccessToken tok =
     isValidChar c = isAlphaNum c || c `elem` ("-_." :: String)
 
 
+-- args
 parseArgs :: [String] -> Config -> IO Config
 parseArgs args conf =
   case args of
@@ -272,6 +274,8 @@ doesSecretHave2FA (Just env) = go env
     go [] = False
 doesSecretHave2FA Nothing = False
 
+
+-- config file and dir
 getXdgConfigDir :: IO (Path Abs Dir)
 getXdgConfigDir = getXdgDir XdgConfig $ Just [reldir|torange-bot|]
 
@@ -373,6 +377,7 @@ lookupEnvFilePath :: String -> IO (Maybe (Path Abs File))
 lookupEnvFilePath env = lookupEnv env >>= \case
   Just p -> Just <$> parseFilePath (T.pack p)
   Nothing -> pure Nothing
+
 
 -- post file
 data Post = Link
