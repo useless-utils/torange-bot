@@ -108,6 +108,7 @@ main = do
   vPassword     <- fromFileOrEnvOrDie conf.passwordFile passwordEnv         "ERROR: Password not provided."
   vClientId     <- fromConfOrDie      conf.clientId                         "ERROR: Client ID not provided."
   vClientSecret <- fromFileOrEnvOrDie conf.clientSecretFile clientSecretEnv "ERROR: Client secret not provided."
+  unless (isJust conf.twoFA && validate2fa (fromJust conf.twoFA)) (die "ERROR: 2FA code is not in valid 6-digit format.")
   let vPass = vPassword ++ maybe [] (":" ++) conf.twoFA
 
   xdgAppDirEither <- createStateDir
@@ -307,15 +308,11 @@ parseEnv conf = do
     , postFile         = postFileEnv
     }
 
-doesSecretHave2FA :: Maybe String -> Bool
-doesSecretHave2FA (Just env) = go env
-  where
-    go (x:xs) = case x of
-                  ':' -> True
-                  _ -> go xs
-    go [] = False
-doesSecretHave2FA Nothing = False
+-- validate2fa :: String -> Bool
+-- validate2fa s = length s == 6 && all isNumber s
 
+validate2fa :: String -> Bool
+validate2fa s = and [ p s | p <- [ (== 6) . length, all isNumber ] ]
 
 -- config file and dir
 getXdgConfigDir :: IO (Path Abs Dir)
