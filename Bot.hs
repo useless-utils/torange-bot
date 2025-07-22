@@ -121,35 +121,24 @@ main = do
                    pure appDir
   let accessFile = appDir </> [relfile|access|]
 
+  isAccessFileReadable <- (&&) <$> doesFileExist accessFile <*> ((.readable) <$> getPermissions accessFile)
+  isAccessFileValid <- isAccessFileStillValid accessFile
+  -- isAccessFileReadable && isAccessFileValid
+
   -- get token
   let userAgent = "torange-bot/0.1 by /u/torange-bot"
-  req <- applyBasicAuth (toUtf8 vClientId) (toUtf8 vClientSecret)
-         <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
-  let req' = req { requestHeaders = (hUserAgent, toUtf8 userAgent) : req.requestHeaders }
-      params :: [(C.ByteString, C.ByteString)]
-      params = [ ( "grant_type", "password" )
-               , ( "username", toUtf8 vUsername )
-               , ( "password", toUtf8 vPass )
-               ]
-      accessTokenReq = urlEncodedBody params req'
   manager <- newManager tlsManagerSettings
-  response <- httpLbs accessTokenReq manager
 
-  let rBody = responseBody response
-      rBodyDec = Y.decode $ CL.unpack rBody
-  rBodyDecT <- insertTimestamp rBodyDec >>= \case
+  responseBodyDecoded <-
+    httpAccessTokenRequest manager vClientId vClientSecret vUsername vPass userAgent
+    >>= \case
+    Left (b, e) -> do hPrintf stderr "HTTP ERROR: \"%s\", try again.\n" e
+                      pure b
     Right b -> pure b
-    Left b -> do hPutStrLn stderr "WARNING: Couldn't add timestamp to access_token!"
-                 pure b
 
-  case responseError rBodyDecT of
-    Just s -> do hPrintf stderr "ERROR: \"%s\", try again.\n" s
-                 exitFailure
-    Nothing -> pure ()
+  C.writeFile (toFilePath accessFile) (toUtf8 $ Y.encode responseBodyDecoded)
 
-  C.writeFile (toFilePath accessFile) (toUtf8 $ Y.encode rBodyDecT)
-
-  accessToken <- case getAccessToken rBodyDecT of
+  accessToken <- case getAccessToken responseBodyDecoded of
                    Just token -> do
                      unless
                        (validateAccessToken token)
@@ -188,6 +177,48 @@ main = do
                    then die errMsg
                    else pure contents
 
+-- http
+httpAccessTokenRequest
+  :: Manager
+  -> String
+  -> String
+  -> String
+  -> String
+  -> String
+  -> IO (Either (Y.Value, String) Y.Value)
+httpAccessTokenRequest manager cid csec user pass ua = do
+  req <- applyBasicAuth (toUtf8 cid) (toUtf8 csec)
+         <$> parseRequest "POST https://www.reddit.com/api/v1/access_token"
+  let req' = req { requestHeaders = (hUserAgent, toUtf8 ua) : req.requestHeaders }
+      params :: [(C.ByteString, C.ByteString)]
+      params = [ ( "grant_type", "password" )
+               , ( "username", toUtf8 user )
+               , ( "password", toUtf8 pass )
+               ]
+      accessTokenReq = urlEncodedBody params req'
+
+  response <- httpLbs accessTokenReq manager
+  let rBody = responseBody response
+      rBodyDec = Y.decode $ CL.unpack rBody
+  rBodyDecT <- insertTimestamp rBodyDec >>= \case
+    Right b -> pure b
+    -- TODO propagate this higher!
+    Left b -> do hPutStrLn stderr "WARNING: Couldn't add timestamp to access_token!"
+                 pure b
+
+  case httpResponseError rBodyDecT of
+    Just s -> pure $ Left (rBodyDecT, s)
+    Nothing -> pure $ Right rBodyDecT
+
+httpResponseError :: Y.Value -> Maybe String
+httpResponseError (Y.Object o) =
+  case M.lookup "error" o of
+    Just v -> case v of
+                Y.String s -> Just s
+                _notStr  -> Nothing
+    Nothing -> Nothing
+httpResponseError _ = Nothing
+
 -- encoding
 toUtf8 :: String -> ByteString
 toUtf8 = TE.encodeUtf8 . T.pack
@@ -201,14 +232,22 @@ getAccessToken (Y.Object o) =
     _ -> Nothing
 getAccessToken _ = Nothing
 
-responseError :: Y.Value -> Maybe String
-responseError (Y.Object o) =
-  case M.lookup "error" o of
-    Just v -> case v of
-                Y.String s -> Just s
-                _notStr  -> Nothing
-    Nothing -> Nothing
-responseError _ = Nothing
+isAccessFileStillValid :: Path Abs File -> IO Bool
+isAccessFileStillValid f = do
+  c <- readFile (toFilePath f)
+  let dc = Y.decode c
+  case fromObj dc of
+    Left _ -> pure False
+    Right o ->
+      case M.lookup "saved_at" o of
+        Nothing -> pure False
+        Just v -> do
+          let savedAt (Y.String s) = readMaybe s :: Maybe UTCTime
+              savedAt _ = Nothing
+          case savedAt v of
+            Nothing -> pure False
+            Just st ->
+              (addUTCTime (secondsToNominalDiffTime (60*60*24)) st >) <$> getCurrentTime
 
 insertTimestamp :: Y.Value -> IO (Either Y.Value Y.Value)
 insertTimestamp (Y.Object a) = do
@@ -456,3 +495,9 @@ postParams post =
     mayParam _ (Just "") = Nothing
     mayParam _ (Just _)  = Nothing
     mayParam _ Nothing   = Nothing
+
+
+-- yocto json
+fromObj :: Y.Value -> Either (M.Map String Y.Value) (M.Map String Y.Value)
+fromObj (Y.Object o) = Right o
+fromObj _ = Left M.empty
