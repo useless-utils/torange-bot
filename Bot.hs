@@ -123,20 +123,23 @@ main = do
 
   isAccessFileReadable <- (&&) <$> doesFileExist accessFile <*> ((.readable) <$> getPermissions accessFile)
   isAccessFileValid <- isAccessFileStillValid accessFile
-  -- isAccessFileReadable && isAccessFileValid
 
   -- get token
   let userAgent = "torange-bot/0.1 by /u/torange-bot"
   manager <- newManager tlsManagerSettings
 
+  -- TODO when reading the existing access file check for saved_at?
   responseBodyDecoded <-
-    httpAccessTokenRequest manager vClientId vClientSecret vUsername vPass userAgent
-    >>= \case
-    Left (b, e) -> do hPrintf stderr "HTTP ERROR: \"%s\", try again.\n" e
-                      pure b
-    Right b -> pure b
+    if isAccessFileReadable && isAccessFileValid
+    then Y.decode <$> readFile (toFilePath accessFile)
+    else httpAccessTokenRequest manager vClientId vClientSecret vUsername vPass userAgent
+         >>= \case
+         Left (b, e) -> do hPrintf stderr "HTTP ERROR: \"%s\", try again.\n" e
+                           pure b
+         Right b -> pure b
 
-  C.writeFile (toFilePath accessFile) (toUtf8 $ Y.encode responseBodyDecoded)
+  unless (isAccessFileReadable && isAccessFileValid)
+    $ C.writeFile (toFilePath accessFile) (toUtf8 $ Y.encode responseBodyDecoded)
 
   accessToken <- case getAccessToken responseBodyDecoded of
                    Just token -> do
