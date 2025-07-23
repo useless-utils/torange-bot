@@ -5,22 +5,51 @@
 
 
 import Network.HTTP.Client
-import Network.HTTP.Client.TLS
+    ( httpLbs,
+      newManager,
+      applyBasicAuth,
+      applyBearerAuth,
+      parseRequest,
+      urlEncodedBody,
+      Manager,
+      Request(requestHeaders),
+      Response(responseBody) )
+import Network.HTTP.Client.TLS ( tlsManagerSettings )
 import Network.HTTP.Types.Header (hUserAgent)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Lazy.Char8 qualified as CL
 
-import System.Environment
-import System.Exit
-import Data.Char
+import System.Environment ( getArgs, lookupEnv )
+import System.Exit ( die )
+import Data.Char ( isSpace, isNumber, isAlphaNum )
 import Data.List ( dropWhileEnd, isInfixOf )
 import Data.Maybe
-import Control.Monad
-import Control.Applicative
-import System.IO
+    ( catMaybes, fromJust, isJust, isNothing, mapMaybe )
+import Control.Monad ( unless, when )
+import Control.Applicative ( Alternative((<|>)) )
+import System.IO ( stderr, hPutStr, hPutStrLn )
 import Path.Parse
+    ( toFilePath,
+      (</>),
+      reldir,
+      relfile,
+      parseFilePath,
+      Path,
+      Abs,
+      Dir,
+      File )
 import Path.IO
+    ( doesDirExist,
+      doesFileExist,
+      ensureDir,
+      getAppUserDataDir,
+      getCurrentDir,
+      getPermissions,
+      getXdgDir,
+      Permissions(readable),
+      XdgDirectory(XdgState, XdgConfig),
+      AnyPath(makeAbsolute) )
 import Data.Text (Text)
 import Data.Text          qualified as T
 import Data.Text.IO       qualified as T
@@ -28,12 +57,12 @@ import Data.Text.Encoding qualified as TE
 
 import Text.JSON.Yocto qualified as Y
 import Data.Map qualified as M
-import Text.Printf
-import Data.Bifunctor
-import Data.Either
+import Text.Printf ( hPrintf )
+import Data.Bifunctor ( Bifunctor(bimap) )
+import Data.Either ( fromRight, isLeft )
 
 import Data.Time.Clock
-import Data.Time.Format
+    ( UTCTime, secondsToNominalDiffTime, addUTCTime, getCurrentTime )
 import Text.Read ( readMaybe )
 
 defaultConfig :: Config
