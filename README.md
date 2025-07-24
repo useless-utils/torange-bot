@@ -1,0 +1,190 @@
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Requirements](#requirements)
+  - [Config](#orgid-nunuwi)
+    - [Config file](#orgid-yiitzk)
+    - [Environment variables](#environment-variables)
+    - [Command-line arguments](#command-line-arguments)
+  - [Post file](#orgid-lnsuzl)
+  - [Safety concerns](#safety-concerns)
+
+
+
+<a id="installation"></a>
+
+# Installation
+
+-   using `ghcup`: Install `ghc` and `cabal`
+    
+        ghcup install ghc 9.6.7
+        ghcup install cabal recommended
+    
+    Compile the executable to `./compiled-exe/torange-bot`
+    
+        ghcup run --ghc 9.6.7 -- cabal install --overwrite-policy=always --install-method=copy --installdir=compiled-exe
+
+
+<a id="usage"></a>
+
+# Usage
+
+
+<a id="requirements"></a>
+
+## Requirements
+
+Both API "Client ID" and "Client Secret" are necessary, along with username, password and optional 2FA code.
+
+-   To get the Client ID and Secret: <a id="create-reddit-app-steps"></a>
+    -   Login to Reddit with an account (doesn't have to be the one that will authenticate and make posts).
+    -   Go to <https://www.reddit.com/prefs/apps>
+    -   Click the button "`are you a developer? create an app...`" or "`create another app...`"
+        -   Give it a name, like `torange-bot`
+        -   Select the radial option `script` labeled "Script for personal use. Will only have access to the developers accounts"
+        -   in `redirect uri` put any valid url like `http://localhost:1234/callback`
+        -   Click "`create app`"
+    -   Now the account that created the app will be automatically added to the `developers` field giving it permission to use the Client ID and Secret.
+    -   Take note of the Client ID code under the "personal use script" text.
+    -   Take note of the `secret` code.
+
+Note that both the Client Secret and account password will be read from a file or environment variable, not to be saved directly on the [config file](#orgid-nunuwi).
+
+
+<a id="orgid-nunuwi"></a>
+
+## Config
+
+There are 3 ways to provide arguments:
+
+1.  Command-line arguments
+2.  Environment variables
+3.  Config file
+
+and their precedence is in that same order: <a id="precedence-order-steps"></a>
+
+-   'Command-line arguments' takes precedence over 'environment variables';
+-   'environment variables' takes predecende over 'config file';
+-   'config file' is the last fallback.
+
+e.g. the `username=myUser` field is both set in the config file and given via command-line `--username myUser`, the command-line takes precedence.
+
+
+<a id="orgid-yiitzk"></a>
+
+### Config file
+
+The format of the config file is:
+
+    key=value
+
+There `key` can have whitescape around it, and `value` can also have whitespace around it but any whitespace inside will be preserved, e.g.:
+
+    password_file =     ~/my/password file stored with spaces
+
+and the value will be equivalent to "`~/my/password file stored with spaces`".
+
+-   Note: for files, environment variables and the special `~/` (tilde) directory are supported. Environment variables must be in the format `$ENV_VAR_NAME`, that is, the env. var. name prefixed by the `$` sign, .e.g: Considering `MY_SECRET_DIR=/path/to/secret/dir/`
+    
+        password_file = $MY_SECRET_DIR/reddit-password
+    
+    Then, `$MY_SECRET_DIR/reddit-password` will be expanded to "`/path/to/secret/dir/reddit-password`".
+
+Comments are also allowed using `#` on their own line that starts with `#`, or at the end of a line where `#` have to be preceded by at least one space, e.g.:
+
+    # this is a comment
+    username = myUser # this is an inline comment
+
+Valid config keys are:
+
+-   `username`, the username of the account via which the post will be published. <a id="orgid-yiitzk-username"></a>
+-   `password_file`, a raw text file that contains the account's password <a id="orgid-yiitzk-password_file"></a> for authentication. It must be the sole content of the file.
+-   `client_id`, the app Client ID from "<https://www.reddit.com/prefs/apps>". <a id="orgid-yiitzk-client_id"></a>
+-   `client_secret_file`, a raw text file that contains the the app Client <a id="orgid-yiitzk-client_secret_file"></a> Secret from "<https://www.reddit.com/prefs/apps>". It must be the sole content of the file.
+
+Note: For the `client_` codes, [see "Requirements#To get the Client ID and Secret"](#create-reddit-app-steps)
+
+Reddit also allows API authentication for accounts that have 2FA enabled, for it the code must be provided at runtime via environment variable or command-line argument. Same for the [post file](#orgid-lnsuzl), it must be provided via command-line argument or environment variable.
+
+
+<a id="environment-variables"></a>
+
+### Environment variables
+
+Supported environment variables are:
+
+-   `TORANGE_BOT_REDDIT_USERNAME`, same as in [Config file#username](#orgid-yiitzk-username)
+-   `TORANGE_BOT_REDDIT_PASSWORD_FILE`, same as in [Config file#password<sub>file</sub>](#orgid-yiitzk-password_file)
+-   `TORANGE_BOT_REDDIT_CLIENT_ID`, same as in [Config file#client<sub>id</sub>](#orgid-yiitzk-client_id)
+-   `TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE`, same as in [Config file#client<sub>secret</sub><sub>file</sub>](#orgid-yiitzk-client_secret_file)
+
+-   `TORANGE_BOT_REDDIT_2FA`, if the account required a 2FA code it will be passed when authenticating. **Note** that once the `access_token` is retrieved to `access_token` alone can be used for **24 hours without requiring reauthentication**.
+-   `TORANGE_BOT_CONFIG_FILE`, where to read the [config file](#orgid-yiitzk).
+-   `TORANGE_BOT_POST_FILE`, where to read the [post file](#orgid-lnsuzl).
+
+Since environment variables are relatively safer than raw text files, password and client secret can be provided via:
+
+-   `TORANGE_BOT_REDDIT_PASSWORD`, the raw password string.
+-   `TORANGE_BOT_REDDIT_CLIENT_SECRET`, the raw client secret string.
+
+These take precedence over their `_FILE` counterparts.
+
+
+<a id="command-line-arguments"></a>
+
+### Command-line arguments
+
+Options are:
+
+```
+-u, --username USERNAME
+-P, --password-file FILE
+--client-id ID
+--client-secret-file FILE
+--2fa 123456
+-c, --config-file FILE
+-p, --post-file FILE
+```
+
+They are equivalent to their config file or environment variable counterparts, only taking precedence over them.
+
+
+<a id="orgid-lnsuzl"></a>
+
+## Post file
+
+The way this works is by having a text file with the post information in this format:
+
+```
+title=The title of the post
+link=https://example.com/🌐
+flair_id=b6308fd0-9d88-40d3-980c-df74636844cd
+sr=SubredditName
+
+<body>
+```
+
+-   NOTE: The start of the post body starts after two consecutive newline characters "`\n\n`", that is, the key-value fields for `title`, `link`, etc. must not have an empty between them, because the optional start of the post body is marked by an empty line.
+
+-   The required fields are:
+    -   `title`
+    -   `link`
+    -   `sr`
+-   The optional fields are:
+    -   `flair_id`
+    -   the text body, which will be interpreted by Reddit as raw Markdown.
+        -   NOTE: the body is separated from the "header" by an empty line.
+-   Some fields have an alias:
+    -   `link` can also be `url`
+    -   `sr` can also be `subreddit`
+
+-   Tips:
+    -   To make a self-post, that is, to publish a link post directly to an account page (not to a Subreddit), specify the `sr` field to be `u_<username>`, where `<username>` is the target username making the post and to which the post will be published under.
+
+
+<a id="safety-concerns"></a>
+
+## Safety concerns
+
+This program is meant for personal use only, on a safe and private computer. Use it at your own risk.
+
+Once the bearer `access_token` is successfully retrieved using the target account's credentials, it will be saved to a state file named "`access`", for convenience of future runs, allowing reuse of that token. This access file can be found at `$XDG_STATE_HOME/torange-bot/access`, if the base directory `$XDG_STATE_HOME` exists; otherwise it fallsback to `~/.torange-bot/access`. Note that the `access_token` gives full access to your account, until it expires, which is currently 24 hours after retrieval. This file is not saved with special permissions nor encrypted, it's saved in plain text.
