@@ -1,3 +1,6 @@
+
+# Link posting bot for Reddit
+
 - [Installation](#installation)
 - [Usage](#usage)
   - [Requirements](#requirements)
@@ -12,7 +15,7 @@
 
 <a id="installation"></a>
 
-# Installation
+## Installation
 
 -   using `ghcup`: Install `ghc` and `cabal`
     
@@ -26,12 +29,16 @@
 
 <a id="usage"></a>
 
-# Usage
+## Usage
+
+Example command:
+
+    torange-bot -c ~/.config/torange-bot/myUser.conf --2fa 123456 --post-file 2025-07-25-post
 
 
 <a id="requirements"></a>
 
-## Requirements
+### Requirements
 
 Both API "Client ID" and "Client Secret" are necessary, along with username, password and optional 2FA code.
 
@@ -52,7 +59,7 @@ Note that both the Client Secret and account password will be read from a file o
 
 <a id="orgid-nunuwi"></a>
 
-## Config
+### Config
 
 There are 3 ways to provide arguments:
 
@@ -71,7 +78,7 @@ e.g. the `username=myUser` field is both set in the config file and given via co
 
 <a id="orgid-yiitzk"></a>
 
-### Config file
+#### Config file
 
 The format of the config file is:
 
@@ -108,7 +115,7 @@ Reddit also allows API authentication for accounts that have 2FA enabled, for it
 
 <a id="environment-variables"></a>
 
-### Environment variables
+#### Environment variables
 
 Supported environment variables are:
 
@@ -131,7 +138,7 @@ These take precedence over their `_FILE` counterparts.
 
 <a id="command-line-arguments"></a>
 
-### Command-line arguments
+#### Command-line arguments
 
 Options are:
 
@@ -150,7 +157,7 @@ They are equivalent to their config file or environment variable counterparts, o
 
 <a id="orgid-lnsuzl"></a>
 
-## Post file
+### Post file
 
 The way this works is by having a text file with the post information in this format:
 
@@ -183,8 +190,8 @@ sr=SubredditName
 
 <a id="safety-concerns"></a>
 
-## Safety concerns
+### Safety concerns
 
 This program is meant for personal use only, on a safe and private computer. Use it at your own risk.
 
-Once the bearer `access_token` is successfully retrieved using the target account's credentials, it will be saved to a state file named "`access`", for convenience of future runs, allowing reuse of that token. This access file can be found at `$XDG_STATE_HOME/torange-bot/access`, if the base directory `$XDG_STATE_HOME` exists; otherwise it fallsback to `~/.torange-bot/access`. Note that the `access_token` gives full access to your account, until it expires, which is currently 24 hours after retrieval. This file is not saved with special permissions nor encrypted, it's saved in plain text.
+Once the bearer `access_token` is successfully retrieved using the target account's credentials, it will be saved to a state file named "`access`", for convenience of future runs, allowing reuse of that token. This access file can be found at `$XDG_STATE_HOME/torange-bot/access`, if the base directory `$XDG_STATE_HOME` exists; otherwise it fallsback to `~/.torange-bot/access`. Note that the `access_token` gives full access to your account, until it expires, which is currently 24 hours after retrieval. This file is not saved with special permissions nor encrypted, it's saved as plain text.

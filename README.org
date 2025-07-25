@@ -13,6 +13,9 @@
 
 * Usage
 
+Example command:
+: torange-bot -c ~/.config/torange-bot/myUser.conf --2fa 123456 --post-file 2025-07-25-post
+
 ** Requirements
 
 Both API "Client ID" and "Client Secret" are necessary, along with
@@ -191,5 +194,5 @@ token. This access file can be found at
 =~/.torange-bot/access=. Note that the =access_token= gives full access to
 your account, until it expires, which is currently 24 hours after
 retrieval. This file is not saved with special permissions nor
-encrypted, it's saved in plain text.
+encrypted, it's saved as plain text.
 
