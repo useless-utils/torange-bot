@@ -103,10 +103,10 @@ Comments are also allowed using `#` on their own line that starts with `#`, or a
 
 Valid config keys are:
 
--   `username`, the username of the account via which the post will be published. <a id="orgid-yiitzk-username"></a>
--   `password_file`, a raw text file that contains the account's password <a id="orgid-yiitzk-password_file"></a> for authentication. It must be the sole content of the file.
--   `client_id`, the app Client ID from "<https://www.reddit.com/prefs/apps>". <a id="orgid-yiitzk-client_id"></a>
--   `client_secret_file`, a raw text file that contains the the app Client <a id="orgid-yiitzk-client_secret_file"></a> Secret from "<https://www.reddit.com/prefs/apps>". It must be the sole content of the file.
+| `username`           | the username of the account via which the post will be published.                                                                            | <a id="orgid-yiitzk-username"></a>           |
+| `password_file`      | a raw text file that contains the account's password for authentication. It must be the sole content of the file.                            | <a id="orgid-yiitzk-password_file"></a>      |
+| `client_id`          | the app Client ID from "<https://www.reddit.com/prefs/apps>".                                                                                | <a id="orgid-yiitzk-client_id"></a>          |
+| `client_secret_file` | a raw text file that contains the the app Client Secret from "<https://www.reddit.com/prefs/apps>". It must be the sole content of the file. | <a id="orgid-yiitzk-client_secret_file"></a> |
 
 Note: For the `client_` codes, [see "Requirements#To get the Client ID and Secret"](#create-reddit-app-steps)
 
@@ -119,19 +119,18 @@ Reddit also allows API authentication for accounts that have 2FA enabled, for it
 
 Supported environment variables are:
 
--   `TORANGE_BOT_REDDIT_USERNAME`, same as in [Config file#username](#orgid-yiitzk-username)
--   `TORANGE_BOT_REDDIT_PASSWORD_FILE`, same as in [Config file#password<sub>file</sub>](#orgid-yiitzk-password_file)
--   `TORANGE_BOT_REDDIT_CLIENT_ID`, same as in [Config file#client<sub>id</sub>](#orgid-yiitzk-client_id)
--   `TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE`, same as in [Config file#client<sub>secret</sub><sub>file</sub>](#orgid-yiitzk-client_secret_file)
+| `TORANGE_BOT_REDDIT_USERNAME`           | same as in [Config file#username](#orgid-yiitzk-username)                                                                                                                                                             |
+| `TORANGE_BOT_REDDIT_PASSWORD_FILE`      | same as in [Config file#password<sub>file</sub>](#orgid-yiitzk-password_file)                                                                                                                                         |
+| `TORANGE_BOT_REDDIT_CLIENT_ID`          | same as in [Config file#client<sub>id</sub>](#orgid-yiitzk-client_id)                                                                                                                                                 |
+| `TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE` | same as in [Config file#client<sub>secret</sub><sub>file</sub>](#orgid-yiitzk-client_secret_file)                                                                                                                     |
+| `TORANGE_BOT_REDDIT_2FA`                | if the account required a 2FA code it will be passed when authenticating. **Note** that once the `access_token` is retrieved to `access_token` alone can be used for **24 hours without requiring reauthentication**. |
+| `TORANGE_BOT_CONFIG_FILE`               | where to read the [config file](#orgid-yiitzk).                                                                                                                                                                       |
+| `TORANGE_BOT_POST_FILE`                 | where to read the [post file](#orgid-lnsuzl).                                                                                                                                                                         |
 
--   `TORANGE_BOT_REDDIT_2FA`, if the account required a 2FA code it will be passed when authenticating. **Note** that once the `access_token` is retrieved to `access_token` alone can be used for **24 hours without requiring reauthentication**.
--   `TORANGE_BOT_CONFIG_FILE`, where to read the [config file](#orgid-yiitzk).
--   `TORANGE_BOT_POST_FILE`, where to read the [post file](#orgid-lnsuzl).
+And since environment variables are relatively safer than raw text files, password and client secret can be directly provided via:
 
-Since environment variables are relatively safer than raw text files, password and client secret can be provided via:
-
--   `TORANGE_BOT_REDDIT_PASSWORD`, the raw password string.
--   `TORANGE_BOT_REDDIT_CLIENT_SECRET`, the raw client secret string.
+| `TORANGE_BOT_REDDIT_PASSWORD`      | the raw password string.      |
+| `TORANGE_BOT_REDDIT_CLIENT_SECRET` | the raw client secret string. |
 
 These take precedence over their `_FILE` counterparts.
 
@@ -142,15 +141,17 @@ These take precedence over their `_FILE` counterparts.
 
 Options are:
 
-```
--u, --username USERNAME
--P, --password-file FILE
---client-id ID
---client-secret-file FILE
---2fa 123456
--c, --config-file FILE
--p, --post-file FILE
-```
+| short | long                   | arg        |
+|----- |---------------------- |---------- |
+| `-u`  | `--username`           | `USERNAME` |
+| `-P`  | `--password-file`      | `FILE`     |
+|       | `--client-id`          | `ID`       |
+|       | `--client-secret-file` | `FILE`     |
+|       | `--2fa`                | `123456`   |
+| `-c`  | `--config-file`        | `FILE`     |
+| `-p`  | `--post-file`          | `FILE`     |
+
+note: args to flags must be provided after spaces, e.g. `--username myUser` (and *not* `--username=myUser`).
 
 They are equivalent to their config file or environment variable counterparts, only taking precedence over them.
 
