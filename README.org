@@ -41,11 +41,11 @@ username, password and optional 2FA code.
 
 Note that both the Client Secret and account password will be read
 from a file or environment variable, not to be saved directly on the
-[[#orgid-nunuwi][config file]].
+[[#config-file][config file]].
 
 ** Config
 :PROPERTIES:
-:CUSTOM_ID: orgid-nunuwi
+:CUSTOM_ID: config
 :END:
 
 There are 3 ways to provide arguments:
@@ -62,7 +62,7 @@ precedence.
 
 *** Config file
 :PROPERTIES:
-:CUSTOM_ID: orgid-yiitzk
+:CUSTOM_ID: config-file
 :END:
 
 The format of the config file is:
@@ -88,62 +88,65 @@ space, e.g.:
 : username = myUser # this is an inline comment
 
 Valid config keys are:
-- =username=, the username of the account via which the post will be published.  <<orgid-yiitzk#username>>
-- =password_file=, a raw text file that contains the account's password  <<orgid-yiitzk#password_file>>
-  for authentication. It must be the sole content of the file.
-- =client_id=, the app Client ID from "https://www.reddit.com/prefs/apps".  <<orgid-yiitzk#client_id>>
-- =client_secret_file=, a raw text file that contains the the app Client  <<orgid-yiitzk#client_secret_file>>
-  Secret from "https://www.reddit.com/prefs/apps". It must be the sole
-  content of the file.
-
+# this works: <<config-keys-table>>
+# but NAME doesn't:
+#+NAME: config-keys-table
+| key                |                                                                                                                                            |
+|--------------------+--------------------------------------------------------------------------------------------------------------------------------------------|
+| =username=           | the username of the account via which the post will be published.                                                                          |
+| =password_file=      | a raw text file that contains the account's password for authentication. It must be the sole content of the file.                          |
+| =client_id=          | the app Client ID from "https://www.reddit.com/prefs/apps".                                                                                |
+| =client_secret_file= | a raw text file that contains the the app Client Secret from "https://www.reddit.com/prefs/apps". It must be the sole content of the file. |
 Note: For the =client_= codes, [[create-reddit-app-steps][see "Requirements#To get the Client ID and Secret"]]
 
 Reddit also allows API authentication for accounts that have 2FA
 enabled, for it the code must be provided at runtime via environment
-variable or command-line argument. Same for the [[#orgid-lnsuzl][post file]], it must be
+variable or command-line argument. Same for the [[#post-file][post file]], it must be
 provided via command-line argument or environment variable.
 
 *** Environment variables
 
 Supported environment variables are:
-- =TORANGE_BOT_REDDIT_USERNAME=, same as in [[orgid-yiitzk#username][Config file#username]]
-- =TORANGE_BOT_REDDIT_PASSWORD_FILE=, same as in [[orgid-yiitzk#password_file][Config file#password_file]]
-- =TORANGE_BOT_REDDIT_CLIENT_ID=, same as in [[orgid-yiitzk#client_id][Config file#client_id]]
-- =TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE=, same as in [[orgid-yiitzk#client_secret_file][Config file#client_secret_file]]
+| Environment variable                  |                                                                                                                                                                                                           |
+|---------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =TORANGE_BOT_REDDIT_USERNAME=           | same as in [[config-keys-table][Config keys: username]]                                                                                                                                                                          |
+| =TORANGE_BOT_REDDIT_PASSWORD_FILE=      | same as in [[config-keys-table][Config keys: password_file]]                                                                                                                                                                     |
+| =TORANGE_BOT_REDDIT_CLIENT_ID=          | same as in [[config-keys-table][Config keys: client_id]]                                                                                                                                                                         |
+| =TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE= | same as in [[config-keys-table][Config key: client_secret_file]]                                                                                                                                                                 |
+| =TORANGE_BOT_REDDIT_2FA=                | if the account required a 2FA code it will be passed when authenticating. *Note* that once the =access_token= is retrieved to =access_token= alone can be used for *24 hours without requiring reauthentication*. |
+| =TORANGE_BOT_CONFIG_FILE=               | where to read the [[#config-file][config file]].                                                                                                                                                                            |
+| =TORANGE_BOT_POST_FILE=                 | where to read the [[#post-file][post file]].                                                                                                                                                                              |
 
-
-- =TORANGE_BOT_REDDIT_2FA=, if the account required a 2FA code it will
-  be passed when authenticating. *Note* that once the =access_token= is
-  retrieved to =access_token= alone can be used for *24 hours without
-  requiring reauthentication*.
-- =TORANGE_BOT_CONFIG_FILE=, where to read the [[#orgid-yiitzk][config file]].
-- =TORANGE_BOT_POST_FILE=, where to read the [[#orgid-lnsuzl][post file]].
-
-
-Since environment variables are relatively safer than raw text files,
-password and client secret can be provided via:
-- =TORANGE_BOT_REDDIT_PASSWORD=, the raw password string.
-- =TORANGE_BOT_REDDIT_CLIENT_SECRET=, the raw client secret string.
+And since environment variables are relatively safer than raw text files,
+password and client secret can be directly provided via:
+|                                  |                               |
+|----------------------------------+-------------------------------|
+| =TORANGE_BOT_REDDIT_PASSWORD=      | the raw password string.      |
+| =TORANGE_BOT_REDDIT_CLIENT_SECRET= | the raw client secret string. |
 These take precedence over their =_FILE= counterparts.
 
 *** Command-line arguments
 
 Options are:
-#+begin_example
--u, --username USERNAME
--P, --password-file FILE
---client-id ID
---client-secret-file FILE
---2fa 123456
--c, --config-file FILE
--p, --post-file FILE
-#+end_example
+| short | long                 | arg      |
+|-------+----------------------+----------|
+| =-u=    | =--username=           | =USERNAME= |
+| =-P=    | =--password-file=      | =FILE=     |
+|       | =--client-id=          | =ID=       |
+|       | =--client-secret-file= | =FILE=     |
+|       | =--2fa=                | =123456=   |
+| =-c=    | =--config-file=        | =FILE=     |
+| =-p=    | =--post-file=          | =FILE=     |
+
+note: args to flags must be provided after spaces, e.g. ~--username
+myUser~ (and /not/ ~--username=myUser~).
+
 They are equivalent to their config file or environment variable
 counterparts, only taking precedence over them.
 
 ** Post file
 :PROPERTIES:
-:CUSTOM_ID: orgid-lnsuzl
+:CUSTOM_ID: post-file
 :END:
 
 The way this works is by having a text file with the post information
