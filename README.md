@@ -9,7 +9,7 @@
     - [Environment variables](#environment-variables)
     - [Command-line arguments](#command-line-arguments)
   - [Post file](#post-file)
-  - [Safety concerns](#safety-concerns)
+- [Safety concerns](#safety-concerns)
 
 
 
@@ -197,7 +197,7 @@ sr=SubredditName
 
 <a id="safety-concerns"></a>
 
-### Safety concerns
+## Safety concerns
 
 This program is meant for personal use only, on a safe and private computer. Use it at your own risk.
 
