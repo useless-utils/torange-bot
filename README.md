@@ -71,9 +71,9 @@ and their precedence is in that same order: <a id="precedence-order-steps"></a>
 
 -   'Command-line arguments' takes precedence over 'environment variables';
 -   'environment variables' takes predecende over 'config file';
--   'config file' is the last fallback.
+-   'config file' is both the default and the last fallback.
 
-e.g. the `username=myUser` field is both set in the config file and given via command-line `--username myUser`, the command-line takes precedence.
+e.g. if `username=myUser` set in both the config file and provided via command-line `--username myUser`, the command-line argument takes precedence.
 
 
 <a id="config-file"></a>
@@ -84,24 +84,24 @@ The format of the config file is:
 
     key=value
 
-There `key` can have whitescape around it, and `value` can also have whitespace around it but any whitespace inside will be preserved, e.g.:
+Where `key` can have whitespace around it, and `value` can also have whitespace around it, but any whitespace between the start and end of the string will be preserved, e.g.:
 
-    password_file =     ~/my/password file stored with spaces
+    password_file =     ~/my/password file with spaces
 
-and the value will be equivalent to "`~/my/password file stored with spaces`".
+The parsed `value` will be equivalent to "`~/my/password file with spaces`".
 
--   Note: for files, environment variables and the special `~/` (tilde) directory are supported. Environment variables must be in the format `$ENV_VAR_NAME`, that is, the env. var. name prefixed by the `$` sign, .e.g: Considering `MY_SECRET_DIR=/path/to/secret/dir/`
+-   Note: for files, environment variables and the special home `~/` (tilde) directory are supported. Environment variables must be in the format `$ENV_VAR_NAME`, that is, the env. var. name prefixed by the `$` sign, .e.g: Considering `MY_SECRET_DIR=/path/to/secret/dir/`
     
         password_file = $MY_SECRET_DIR/reddit-password
     
     Then, `$MY_SECRET_DIR/reddit-password` will be expanded to "`/path/to/secret/dir/reddit-password`".
 
-Comments are also allowed using `#` on their own line that starts with `#`, or at the end of a line where `#` have to be preceded by at least one space, e.g.:
+Comments are also allowed using `#`. If a line starts with `#` it will be ignored as a comment. Inline comments are also allowed at the end of a life where `#` must be preceded by at least one space from `value`. e.g.:
 
-    # this is a comment
+    # this is a comment line
     username = myUser # this is an inline comment
 
-Valid config keys are:
+Valid config keys are: <a id="config-keys-table"></a>
 
 | key                  |                                                                                                                                              |
 |-------------------- |-------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,15 +121,15 @@ Reddit also allows API authentication for accounts that have 2FA enabled, for it
 
 Supported environment variables are:
 
-| Environment variable                    |                                                                                                                                                                                                                       |
-|--------------------------------------- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TORANGE_BOT_REDDIT_USERNAME`           | same as in [Config keys: username](#nil)                                                                                                                                                                              |
-| `TORANGE_BOT_REDDIT_PASSWORD_FILE`      | same as in [Config keys: password\_file](#nil)                                                                                                                                                                        |
-| `TORANGE_BOT_REDDIT_CLIENT_ID`          | same as in [Config keys: client\_id](#nil)                                                                                                                                                                            |
-| `TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE` | same as in [Config key: client\_secret\_file](#nil)                                                                                                                                                                   |
-| `TORANGE_BOT_REDDIT_2FA`                | if the account required a 2FA code it will be passed when authenticating. **Note** that once the `access_token` is retrieved to `access_token` alone can be used for **24 hours without requiring reauthentication**. |
-| `TORANGE_BOT_CONFIG_FILE`               | where to read the [config file](#config-file).                                                                                                                                                                        |
-| `TORANGE_BOT_POST_FILE`                 | where to read the [post file](#post-file).                                                                                                                                                                            |
+| Environment variable                    |                                                                                                                                                                                                                                                                                                |
+|--------------------------------------- |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TORANGE_BOT_REDDIT_USERNAME`           | same as in [Config keys: username](#config-keys-table)                                                                                                                                                                                                                                         |
+| `TORANGE_BOT_REDDIT_PASSWORD_FILE`      | same as in [Config keys: password\_file](#config-keys-table)                                                                                                                                                                                                                                   |
+| `TORANGE_BOT_REDDIT_CLIENT_ID`          | same as in [Config keys: client\_id](#config-keys-table)                                                                                                                                                                                                                                       |
+| `TORANGE_BOT_REDDIT_CLIENT_SECRET_FILE` | same as in [Config key: client\_secret\_file](#config-keys-table)                                                                                                                                                                                                                              |
+| `TORANGE_BOT_REDDIT_2FA`                | if the account requires a 2FA code, it will be retrieved from this variable and passed to the request when authenticating. **Note**: once the `access_token` is retrieved, the `access_token` alone will give full access to your account for **24 hours without requiring reauthentication**. |
+| `TORANGE_BOT_CONFIG_FILE`               | where to read the [config file](#config-file).                                                                                                                                                                                                                                                 |
+| `TORANGE_BOT_POST_FILE`                 | where to read the [post file](#post-file).                                                                                                                                                                                                                                                     |
 
 And since environment variables are relatively safer than raw text files, password and client secret can be directly provided via:
 
